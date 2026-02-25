@@ -1,0 +1,8 @@
+.cache
+songs.txt
+
+env/
+__pycache__/
+downloads/
+temp_spotify_songs.txt
+french_indie/
