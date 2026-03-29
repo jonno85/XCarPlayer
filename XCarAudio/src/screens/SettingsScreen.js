@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { login, logout } from '../services/audioStation';
+import { saveAgentUrl, testAgentConnection } from '../services/nasAgent';
 import * as SecureStore from 'expo-secure-store';
 
 export default function SettingsScreen() {
@@ -8,6 +9,8 @@ export default function SettingsScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [agentUrl, setAgentUrl] = useState('');
+  const [agentTesting, setAgentTesting] = useState(false);
 
   async function handleLogin() {
     if (!quickConnectId || !username || !password) {
@@ -69,6 +72,37 @@ export default function SettingsScreen() {
       <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={handleLogout}>
         <Text style={styles.btnText}>Disconnect</Text>
       </TouchableOpacity>
+
+      <Text style={[styles.label, { marginTop: 32 }]}>NAS Agent URL</Text>
+      <Text style={styles.hint}>e.g. http://your-nas-id.quickconnect.to:8765</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="http://..."
+        placeholderTextColor="#555"
+        autoCapitalize="none"
+        keyboardType="url"
+        value={agentUrl}
+        onChangeText={setAgentUrl}
+      />
+      <TouchableOpacity
+        style={styles.btn}
+        disabled={agentTesting}
+        onPress={async () => {
+          if (!agentUrl) { Alert.alert('Enter the agent URL'); return; }
+          setAgentTesting(true);
+          try {
+            await testAgentConnection(agentUrl);
+            await saveAgentUrl(agentUrl);
+            Alert.alert('Agent connected', 'NAS agent is reachable and saved.');
+          } catch (e) {
+            Alert.alert('Agent unreachable', e.message);
+          } finally {
+            setAgentTesting(false);
+          }
+        }}
+      >
+        <Text style={styles.btnText}>{agentTesting ? 'Testing…' : 'Save Agent URL'}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -92,4 +126,5 @@ const styles = StyleSheet.create({
   },
   btnSecondary: { backgroundColor: '#333', marginTop: 12 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  hint: { color: '#555', fontSize: 11, marginBottom: 4 },
 });

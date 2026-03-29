@@ -8,6 +8,7 @@ import LibraryScreen from '../screens/LibraryScreen';
 import PlaylistScreen from '../screens/PlaylistScreen';
 import PlayerScreen from '../screens/PlayerScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import MigrationScreen from '../screens/MigrationScreen';
 
 const Tab = createBottomTabNavigator();
 const LibraryStack = createNativeStackNavigator();
@@ -42,6 +43,11 @@ export default function Navigation() {
           name="PlayerTab"
           component={PlayerScreen}
           options={{ title: 'Now Playing', tabBarIcon: ({ color }) => <Text style={{ color }}>▶</Text> }}
+        />
+        <Tab.Screen
+          name="MigrateTab"
+          component={MigrationScreen}
+          options={{ title: 'Migrate', tabBarIcon: ({ color }) => <Text style={{ color }}>⇄</Text>, headerShown: true, headerStyle: { backgroundColor: '#111' }, headerTintColor: '#fff' }}
         />
         <Tab.Screen
           name="SettingsTab"
