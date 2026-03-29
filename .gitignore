@@ -6,3 +6,7 @@ __pycache__/
 downloads/
 temp_spotify_songs.txt
 french_indie/
+angy/
+spotify_credentials.json
+
+*.zip
