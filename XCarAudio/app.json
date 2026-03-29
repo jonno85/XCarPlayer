@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "X Car Audio",
+    "slug": "x-car-audio",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.xcaraudio.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "com.xcaraudio.app"
+    },
+    "plugins": [
+      "react-native-track-player"
+    ]
+  }
+}
