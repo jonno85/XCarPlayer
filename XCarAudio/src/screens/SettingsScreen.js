@@ -5,9 +5,9 @@ import { saveAgentUrl, testAgentConnection } from '../services/nasAgent';
 import * as SecureStore from 'expo-secure-store';
 
 export default function SettingsScreen() {
-  const [quickConnectId, setQuickConnectId] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [quickConnectId, setQuickConnectId] = useState('jfilippininas.fr3');
+  const [username, setUsername] = useState('jonathan');
+  const [password, setPassword] = useState('Mi?3BsNb');
   const [loading, setLoading] = useState(false);
   const [agentUrl, setAgentUrl] = useState('');
   const [agentTesting, setAgentTesting] = useState(false);
@@ -23,6 +23,7 @@ export default function SettingsScreen() {
       Alert.alert('Connected', 'Successfully connected to your Synology NAS.');
     } catch (e) {
       Alert.alert('Connection failed', e.message);
+      console.error('Login error:', e.message, e?.response?.status, e?.response?.data, e?.code);
     } finally {
       setLoading(false);
     }
@@ -38,7 +39,7 @@ export default function SettingsScreen() {
       <Text style={styles.label}>QuickConnect ID</Text>
       <TextInput
         style={styles.input}
-        placeholder="your-nas-id"
+        placeholder="your-nas-id or https://..."
         placeholderTextColor="#555"
         autoCapitalize="none"
         value={quickConnectId}

@@ -10,3 +10,12 @@ angy/
 spotify_credentials.json
 
 *.zip
+
+XCarAudio/node_modules/
+XCarAudio/dist/
+XCarAudio/build/
+XCarAudio/.env
+XCarAudio/ios/build/
+XCarAudio/ios/Pods/
+
+XCarAudio/nas_agent/__pycache__/

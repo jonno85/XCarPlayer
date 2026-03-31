@@ -13,7 +13,11 @@ export async function configure(quickConnectId) {
   // Store the resolved URL after first successful login
   const stored = await SecureStore.getItemAsync('synology_base_url');
   if (stored) baseURL = stored;
-  else baseURL = `https://${quickConnectId}.quickconnect.to`;
+  else if (quickConnectId.startsWith('http://') || quickConnectId.startsWith('https://')) {
+    baseURL = quickConnectId.replace(/\/$/, '');
+  } else {
+    baseURL = `https://${quickConnectId}.quickconnect.to`;
+  }
 }
 
 async function getSid() {
@@ -22,6 +26,8 @@ async function getSid() {
 
 export async function login(quickConnectId, username, password) {
   await configure(quickConnectId);
+  console.log('[audioStation] baseURL:', baseURL);
+  console.log('[audioStation] hitting:', `${baseURL}/webapi/auth.cgi`);
   const res = await axios.get(`${baseURL}/webapi/auth.cgi`, {
     params: {
       api: 'SYNO.API.Auth',
@@ -47,6 +53,8 @@ export async function logout() {
       params: { api: 'SYNO.API.Auth', version: 1, method: 'logout', session: 'AudioStation', _sid: sid },
     });
     await SecureStore.deleteItemAsync(STORAGE_KEY);
+    await SecureStore.deleteItemAsync('synology_base_url');
+    baseURL = null;
   }
 }
 

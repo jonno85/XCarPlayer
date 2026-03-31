@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo-env-info:*)",
+      "Bash(npx expo:*)",
+      "Bash(grep -r RCTDevMenuConfiguration node_modules/expo-modules-core/ios/ --include=*.h -l)",
+      "Bash(grep -r RCTDevMenuConfiguration node_modules/react-native/ --include=*.h -l)",
+      "Bash(find ios/Pods/fmt -name *.podspec -o -name CMakeLists.txt)",
+      "Bash(pod search:*)",
+      "Bash(find ios/Pods -name *.xcframework -o -name *.framework)",
+      "Bash(find node_modules/expo -name AppDelegate* -o -name ExpoAppDelegate*)",
+      "Bash(find node_modules/react-native -path */template/ios/*.swift)",
+      "Bash(grep -rn \"bindReactNativeFactory\\\\|startReactNative\\\\|RCTReactNativeFactory\" node_modules/react-native/Libraries/ --include=*.h --include=*.swift)",
+      "Bash(grep -rn \"Login error\\\\|login.*error\\\\|Network Error\" src/ --include=*.ts --include=*.tsx --include=*.js)"
+    ]
+  }
+}

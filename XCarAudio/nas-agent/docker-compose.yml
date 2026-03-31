@@ -4,8 +4,8 @@ services:
     container_name: xcaraudio-agent
     restart: unless-stopped
     ports:
-      # Accessible on your NAS at port 8765 — change if needed
-      - "8765:8000"
+      # Accessible on your NAS at port 8899
+      - "8899:8000"
     volumes:
       # Map to your AudioStation music folder on the NAS
       # DSM default: /volume1/music

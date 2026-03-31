@@ -8,14 +8,15 @@
       "bundleIdentifier": "com.xcaraudio.app",
       "supportsTablet": false,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio"],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
       "package": "com.xcaraudio.app"
     },
-    "plugins": [
-      "react-native-track-player"
-    ]
+    "plugins": []
   }
 }
