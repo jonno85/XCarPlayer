@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { login, logout } from '../services/audioStation';
 import { saveAgentUrl, testAgentConnection } from '../services/nasAgent';
-import * as SecureStore from 'expo-secure-store';
 
 export default function SettingsScreen() {
-  const [quickConnectId, setQuickConnectId] = useState('jfilippininas.fr3');
+  const [quickConnectId, setQuickConnectId] = useState('jfilippininas');
   const [username, setUsername] = useState('jonathan');
   const [password, setPassword] = useState('Mi?3BsNb');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpToken, setOtpToken] = useState(null);
   const [loading, setLoading] = useState(false);
   const [agentUrl, setAgentUrl] = useState('');
   const [agentTesting, setAgentTesting] = useState(false);
@@ -17,13 +18,24 @@ export default function SettingsScreen() {
       Alert.alert('Fill in all fields');
       return;
     }
+    if (otpToken && !otpCode) {
+      Alert.alert('Enter your verification code');
+      return;
+    }
     setLoading(true);
     try {
-      await login(quickConnectId, username, password);
+      await login(quickConnectId, username, password, otpToken ? { otpCode, token: otpToken } : undefined);
+      setOtpCode('');
+      setOtpToken(null);
       Alert.alert('Connected', 'Successfully connected to your Synology NAS.');
     } catch (e) {
-      Alert.alert('Connection failed', e.message);
-      console.error('Login error:', e.message, e?.response?.status, e?.response?.data, e?.code);
+      if (e.code === 'OTP_REQUIRED') {
+        setOtpToken(e.otpToken ?? null);
+        Alert.alert('Two-factor required', 'Enter the verification code from Synology and tap connect again.');
+      } else {
+        Alert.alert('Connection failed', e.message);
+      }
+      console.warn('Login error:', e.message, e?.response?.status, e?.response?.data, e?.code);
     } finally {
       setLoading(false);
     }
@@ -31,6 +43,8 @@ export default function SettingsScreen() {
 
   async function handleLogout() {
     await logout();
+    setOtpCode('');
+    setOtpToken(null);
     Alert.alert('Disconnected');
   }
 
@@ -66,8 +80,24 @@ export default function SettingsScreen() {
         onChangeText={setPassword}
       />
 
+      {otpToken ? (
+        <>
+          <Text style={styles.label}>Verification Code</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="123456"
+            placeholderTextColor="#555"
+            keyboardType="number-pad"
+            value={otpCode}
+            onChangeText={setOtpCode}
+          />
+        </>
+      ) : null}
+
       <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
-        <Text style={styles.btnText}>{loading ? 'Connecting…' : 'Connect to NAS'}</Text>
+        <Text style={styles.btnText}>
+          {loading ? 'Connecting…' : otpToken ? 'Verify and Connect' : 'Connect to NAS'}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={handleLogout}>

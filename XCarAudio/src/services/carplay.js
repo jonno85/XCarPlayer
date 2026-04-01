@@ -1,4 +1,4 @@
-import { CarPlay, ListTemplate, NowPlayingTemplate } from 'react-native-carplay';
+import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
 import { getPlaylists, getPlaylistTracks, getStreamUrl } from './audioStation';
 import { loadPlaylist, playTrackAt } from './player';
 

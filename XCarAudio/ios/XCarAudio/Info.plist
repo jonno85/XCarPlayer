@@ -27,7 +27,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.xcaraudio.app</string>
+				<string>com.xcaraudio.pro</string>
 			</array>
 		</dict>
 	</array>

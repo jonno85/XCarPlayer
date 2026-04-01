@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "platforms": ["ios", "android"],
     "ios": {
-      "bundleIdentifier": "com.xcaraudio.app",
+      "bundleIdentifier": "com.xcaraudio.pro",
       "supportsTablet": false,
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
@@ -15,7 +15,7 @@
       }
     },
     "android": {
-      "package": "com.xcaraudio.app"
+      "package": "com.xcaraudio.pro"
     },
     "plugins": []
   }
