@@ -2,6 +2,7 @@
   "expo": {
     "name": "X Car Audio",
     "slug": "x-car-audio",
+    "icon": "./assets/icon.png",
     "version": "1.0.0",
     "platforms": ["ios", "android"],
     "ios": {

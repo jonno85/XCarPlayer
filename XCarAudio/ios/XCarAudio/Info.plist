@@ -82,6 +82,7 @@
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
+		<string>carplay</string>
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<false/>

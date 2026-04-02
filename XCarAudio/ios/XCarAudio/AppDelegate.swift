@@ -1,5 +1,6 @@
 internal import Expo
 import React
+import CarPlay
 import ReactAppDependencyProvider
 
 @main
@@ -21,6 +22,24 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    if connectingSceneSession.role == .windowApplication {
+      let config = UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+      config.delegateClass = SceneDelegate.self
+      return config
+    }
+    if connectingSceneSession.role.rawValue == "CPTemplateApplicationSceneSessionRoleApplication" {
+      let config = UISceneConfiguration(name: "CarPlay Configuration", sessionRole: connectingSceneSession.role)
+      config.delegateClass = CarPlaySceneDelegate.self
+      return config
+    }
+    return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
   }
 
   // Linking API
