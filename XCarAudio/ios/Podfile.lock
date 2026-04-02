@@ -81,6 +81,29 @@ PODS:
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
+  - NitroModules (0.35.2):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RCTDeprecation (0.83.4)
   - RCTRequired (0.83.4)
   - RCTSwiftUI (0.83.4)
@@ -1474,8 +1497,6 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-  - react-native-carplay (2.7.22):
-    - React
   - react-native-safe-area-context (5.6.2):
     - hermes-engine
     - RCTRequired
@@ -1931,6 +1952,30 @@ PODS:
     - React-perflogger (= 0.83.4)
     - React-utils (= 0.83.4)
     - ReactNativeDependencies
+  - ReactNativeAutoPlay (0.3.6):
+    - hermes-engine
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - ReactNativeDependencies (0.83.4)
   - RNScreens (4.23.0):
     - hermes-engine
@@ -2000,6 +2045,7 @@ DEPENDENCIES:
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - NitroModules (from `../node_modules/react-native-nitro-modules`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -2037,7 +2083,6 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
-  - "react-native-carplay (from `../node_modules/@g4rb4g3/react-native-carplay`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-track-player (from `../node_modules/react-native-track-player`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
@@ -2073,6 +2118,7 @@ DEPENDENCIES:
   - ReactAppDependencyProvider (from `build/generated/ios/ReactAppDependencyProvider`)
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - "ReactNativeAutoPlay (from `../node_modules/@iternio/react-native-auto-play`)"
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
@@ -2117,6 +2163,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v0.14.1
+  NitroModules:
+    :path: "../node_modules/react-native-nitro-modules"
   RCTDeprecation:
     :path: "../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -2189,8 +2237,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
-  react-native-carplay:
-    :path: "../node_modules/@g4rb4g3/react-native-carplay"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-track-player:
@@ -2261,6 +2307,8 @@ EXTERNAL SOURCES:
     :path: build/generated/ios/ReactCodegen
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  ReactNativeAutoPlay:
+    :path: "../node_modules/@iternio/react-native-auto-play"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
   RNScreens:
@@ -2286,6 +2334,7 @@ SPEC CHECKSUMS:
   ExpoWebBrowser: 04fdc3b0619d6708f931a9d0f8850903cc38d896
   FBLazyVector: 061f518bbd81677ed8a8317e2ae60b8779495808
   hermes-engine: 7988bfcd812ea0d248d69eda309c9fa89516fec6
+  NitroModules: e9f827e79b3fac2d24e13d0e2c18e8d2848049e2
   RCTDeprecation: 5045f20b2cc1239bf422764004338c720684a22f
   RCTRequired: b6b9724225dd780ac2989d2e575d5513c50fe04b
   RCTSwiftUI: 395b65655229fa2006415207adcfcb6e35dc78ed
@@ -2322,7 +2371,6 @@ SPEC CHECKSUMS:
   React-logger: d0632d799fbd3507cdd5406f72489a83ed5f9163
   React-Mapbuffer: cb8edcd4408647c22f1f56651e0bacd65dc3fa28
   React-microtasksnativemodule: 9fce1e7fbdd8454673c0dc41f7599ac70ae744fa
-  react-native-carplay: 7afdba69aea327bf6e9c5ddb97c92e621847af72
   react-native-safe-area-context: c5d42c4294aa175415947e23c2ac956253abfc7d
   react-native-track-player: dd56f9948e03756a217c75e0a61aa04aab65b5a1
   React-NativeModulesApple: f3eb751b0ea23645a5283ed8c8bb8ebeeda32d15
@@ -2358,6 +2406,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 2b19d66e5ddfe8dc7afb6338a4626156cbf2bab1
   ReactCodegen: 129721574fc6c7fc00619eca1eb42642bc09fbe3
   ReactCommon: c6e81cc1ae185fa84863f3ea1d58caac4be741d7
+  ReactNativeAutoPlay: 5b2cf8363da06ad99d4ce9d86c337abaf914594e
   ReactNativeDependencies: 3fa0a44c7264392385083896252732abcb76a99a
   RNScreens: 6c5b8c41580fe6b54ee1b332c96b782ee360e73f
   SwiftAudioEx: f6aa653770f3a0d3851edaf8d834a30aee4a7646

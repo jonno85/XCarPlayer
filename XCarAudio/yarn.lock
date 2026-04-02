@@ -1527,21 +1527,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@g4rb4g3/react-native-carplay@npm:2.7.22":
-  version: 2.7.22
-  resolution: "@g4rb4g3/react-native-carplay@npm:2.7.22"
-  peerDependencies:
-    react: ^18.0.0 || ^19.0.0
-    react-native: ^0.74.0 || ^0.76.0 || ^0.79.0
-  peerDependenciesMeta:
-    react:
-      optional: true
-    react-native:
-      optional: true
-  checksum: 10c0/d5ea5b4faa7c57fb911864e9be2da4107bc62d4bcf77a116caaa23d556cdef9ee0ea0fdf1113815c6b679cb87129860bf83c6c6e19d09278ee831814b44e6833
-  languageName: node
-  linkType: hard
-
 "@gar/promise-retry@npm:^1.0.0":
   version: 1.0.3
   resolution: "@gar/promise-retry@npm:1.0.3"
@@ -1582,6 +1567,19 @@ __metadata:
   version: 0.1.3
   resolution: "@istanbuljs/schema@npm:0.1.3"
   checksum: 10c0/61c5286771676c9ca3eb2bd8a7310a9c063fb6e0e9712225c8471c582d157392c88f5353581c8c9adbe0dff98892317d2fdfc56c3499aa42e0194405206a963a
+  languageName: node
+  linkType: hard
+
+"@iternio/react-native-auto-play@npm:^0.3.6":
+  version: 0.3.6
+  resolution: "@iternio/react-native-auto-play@npm:0.3.6"
+  dependencies:
+    react-native-uuid: "npm:^2.0.3"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+    react-native-nitro-modules: "*"
+  checksum: 10c0/79f81e821d23d861b68ba0d116acd6b2538be886899b782ed42d71450ffe40c40da2043196553978f0465d8f7196caae3280056dcdc43869c891fa5934b42f23
   languageName: node
   linkType: hard
 
@@ -5639,6 +5637,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-nitro-modules@npm:^0.35.2":
+  version: 0.35.2
+  resolution: "react-native-nitro-modules@npm:0.35.2"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/6136f36ac1dc01dface7a4765b3258c8c8c766bc77c53765dfa6a29ff9f2091b13ce3e2a8a651e515cda045d125fc6fdd4f450cb4aabb0ab94c3d6b4b7b55b77
+  languageName: node
+  linkType: hard
+
 "react-native-safe-area-context@npm:~5.6.2":
   version: 5.6.2
   resolution: "react-native-safe-area-context@npm:5.6.2"
@@ -5676,6 +5684,13 @@ __metadata:
     shaka-player:
       optional: true
   checksum: 10c0/8f4a4f1bd9568c2f2ab8a41b54304bd426d0cb98167d643315f85304ac0983eec6d5b4372c343fbcc398a993648ad263a5ffdd0ea5bc9d966d063afb9705dc04
+  languageName: node
+  linkType: hard
+
+"react-native-uuid@npm:^2.0.3":
+  version: 2.0.4
+  resolution: "react-native-uuid@npm:2.0.4"
+  checksum: 10c0/56bcf29fa59a3e4c6374e612d9adf4e2a5e7f1000e632451f0e4bf0fbeb00664eb8657a5af7e2adb64c435e96f42c535cc20529cffcc48a03581b41ba1761d2a
   languageName: node
   linkType: hard
 
@@ -6606,7 +6621,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "x-car-audio@workspace:."
   dependencies:
-    "@g4rb4g3/react-native-carplay": "npm:2.7.22"
+    "@iternio/react-native-auto-play": "npm:^0.3.6"
     "@react-navigation/bottom-tabs": "npm:^7.15.9"
     "@react-navigation/native": "npm:^7.2.2"
     "@react-navigation/native-stack": "npm:^7.14.10"
@@ -6619,6 +6634,7 @@ __metadata:
     expo-status-bar: "npm:~55.0.4"
     react: "npm:19.2.0"
     react-native: "npm:0.83.4"
+    react-native-nitro-modules: "npm:^0.35.2"
     react-native-safe-area-context: "npm:~5.6.2"
     react-native-screens: "npm:~4.23.0"
     react-native-track-player: "npm:^4.1.2"

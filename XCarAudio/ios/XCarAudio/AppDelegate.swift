@@ -1,4 +1,6 @@
 internal import Expo
+// Migrating to @iternio/react-native-auto-play
+// Class name change to bust symbols cache
 import React
 import CarPlay
 import ReactAppDependencyProvider
@@ -24,22 +26,35 @@ class AppDelegate: ExpoAppDelegate {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  override func application(
-    _ application: UIApplication,
-    configurationForConnecting connectingSceneSession: UISceneSession,
-    options: UIScene.ConnectionOptions
-  ) -> UISceneConfiguration {
-    if connectingSceneSession.role == .windowApplication {
-      let config = UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
-      config.delegateClass = SceneDelegate.self
-      return config
+  @objc func getRootViewForAutoplay(
+    moduleName: String,
+    initialProperties: [String: Any]?
+  ) -> UIView? {
+    if RCTIsNewArchEnabled() {
+      if let factory = reactNativeFactory?.rootViewFactory as? ExpoReactRootViewFactory {
+         return factory.superView(
+          withModuleName: moduleName,
+          initialProperties: initialProperties,
+          launchOptions: nil,
+          devMenuConfiguration: nil
+        )
+      }
+      
+      return reactNativeFactory?.rootViewFactory.view(
+        withModuleName: moduleName,
+        initialProperties: initialProperties
+      )
     }
-    if connectingSceneSession.role.rawValue == "CPTemplateApplicationSceneSessionRoleApplication" {
-      let config = UISceneConfiguration(name: "CarPlay Configuration", sessionRole: connectingSceneSession.role)
-      config.delegateClass = CarPlaySceneDelegate.self
-      return config
+
+    if let rootView = window?.rootViewController?.view as? RCTRootView {
+      return RCTRootView(
+        bridge: rootView.bridge,
+        moduleName: moduleName,
+        initialProperties: initialProperties
+      )
     }
-    return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+
+    return nil
   }
 
   // Linking API

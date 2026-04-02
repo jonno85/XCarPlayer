@@ -53,26 +53,56 @@
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
+		<key>CPSupportsDashboardNavigationScene</key>
+		<true/>
+		<key>CPSupportsInstrumentClusterNavigationScene</key>
+		<true/>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 		<key>UISceneConfigurations</key>
 		<dict>
-			<key>UIWindowSceneSessionRoleApplication</key>
+			<key>CPTemplateApplicationDashboardSceneSessionRoleApplication</key>
 			<array>
 				<dict>
+					<key>UISceneClassName</key>
+					<string>CPTemplateApplicationDashboardScene</string>
 					<key>UISceneConfigurationName</key>
-					<string>Default Configuration</string>
+					<string>CarPlayDashboard</string>
 					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<string>DashboardSceneDelegate</string>
+				</dict>
+			</array>
+			<key>CPTemplateApplicationInstrumentClusterSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>CPTemplateApplicationInstrumentClusterScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>CarPlayCluster</string>
+					<key>UISceneDelegateClassName</key>
+					<string>ClusterSceneDelegate</string>
 				</dict>
 			</array>
 			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
 			<array>
 				<dict>
+					<key>UISceneClassName</key>
+					<string>CPTemplateApplicationScene</string>
 					<key>UISceneConfigurationName</key>
-					<string>CarPlay Configuration</string>
+					<string>CarPlayHeadUnit</string>
 					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate</string>
+					<string>HeadUnitSceneDelegate</string>
+				</dict>
+			</array>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>WindowApplication</string>
+					<key>UISceneDelegateClassName</key>
+					<string>WindowApplicationSceneDelegate</string>
 				</dict>
 			</array>
 		</dict>

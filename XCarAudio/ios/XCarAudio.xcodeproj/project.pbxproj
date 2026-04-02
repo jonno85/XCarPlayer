@@ -10,8 +10,6 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		16510DD3173C0A2B9C2DA03E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6EB41AEECB9B88013A342695 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		6820A1612F7DDC3100DCB25F /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6820A15F2F7DDC3100DCB25F /* CarPlaySceneDelegate.swift */; };
-		6820A1622F7DDC3100DCB25F /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6820A1602F7DDC3100DCB25F /* SceneDelegate.swift */; };
 		A59610C11F03CF142EC0F781 /* Pods_XCarAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABEA36D123F95B252887C032 /* Pods_XCarAudio.framework */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		CA41E23BFBFA62DEA4E1DCE8 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DC1E3C6AE66E1AF5AF5F74E /* ExpoModulesProvider.swift */; };
@@ -23,8 +21,6 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = XCarAudio/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = XCarAudio/Info.plist; sourceTree = "<group>"; };
 		31DA1F901D709999305B8D2D /* Pods-XCarAudio.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.release.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.release.xcconfig"; sourceTree = "<group>"; };
-		6820A15F2F7DDC3100DCB25F /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCarAudio/CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
-		6820A1602F7DDC3100DCB25F /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCarAudio/SceneDelegate.swift; sourceTree = "<group>"; };
 		6EB41AEECB9B88013A342695 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = XCarAudio/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8DC1E3C6AE66E1AF5AF5F74E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-XCarAudio/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = XCarAudio/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -59,8 +55,6 @@
 		13B07FAE1A68108700A75B9A /* XCarAudio */ = {
 			isa = PBXGroup;
 			children = (
-				6820A15F2F7DDC3100DCB25F /* CarPlaySceneDelegate.swift */,
-				6820A1602F7DDC3100DCB25F /* SceneDelegate.swift */,
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* XCarAudio-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
@@ -282,6 +276,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ReactNativeAutoPlay/ReactNativeAutoPlay.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
@@ -291,6 +286,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ReactNativeAutoPlay.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -328,8 +324,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6820A1612F7DDC3100DCB25F /* CarPlaySceneDelegate.swift in Sources */,
-				6820A1622F7DDC3100DCB25F /* SceneDelegate.swift in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				CA41E23BFBFA62DEA4E1DCE8 /* ExpoModulesProvider.swift in Sources */,
 			);

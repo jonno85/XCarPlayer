@@ -1,74 +1,75 @@
-import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
+import { HybridAutoPlay, ListTemplate, NowPlayingTemplate } from '@iternio/react-native-auto-play';
 import { getPlaylists, getPlaylistTracks, getStreamUrl } from './audioStation';
 import { loadPlaylist, playTrackAt } from './player';
 
-// CarPlay UI: root list of playlists → track list → NowPlaying
-// Apple restricts CarPlay templates strictly — no custom UI
+// CarPlay UI for @iternio/react-native-auto-play
+// This service handles both CarPlay and Android Auto!
 
-export function registerCarPlay() {
-  CarPlay.registerOnConnect(onConnect);
-  CarPlay.registerOnDisconnect(onDisconnect);
+export default function registerAutoPlay() {
+  HybridAutoPlay.addListener('didConnect', onConnect);
+  HybridAutoPlay.addListener('didDisconnect', onDisconnect);
 }
 
 async function onConnect() {
-  const playlists = await getPlaylists();
-  const rootTemplate = buildPlaylistListTemplate(playlists);
-  CarPlay.setRootTemplate(rootTemplate);
+  try {
+    const playlists = await getPlaylists();
+    const rootTemplate = buildPlaylistListTemplate(playlists);
+    rootTemplate.setRootTemplate();
+  } catch (error) {
+    console.error('[AutoPlay] Error on connect:', error);
+  }
 }
 
 function onDisconnect() {
-  // Nothing to tear down — CarPlay handles cleanup
+  console.log('[AutoPlay] Disconnected from car head unit');
 }
 
 function buildPlaylistListTemplate(playlists) {
   return new ListTemplate({
-    id: 'playlists',
-    title: 'X Car Audio',
+    title: { text: 'X Car Audio' },
     sections: [
       {
         items: playlists.map((pl) => ({
-          id: pl.id,
-          text: pl.name,
-          detailText: `${pl.additional?.songs?.length ?? ''} tracks`,
+          title: { text: pl.name },
+          subtitle: { text: `${pl.additional?.songs?.length ?? 0} tracks` },
+          onPress: async () => {
+            await openPlaylist(pl);
+          },
         })),
       },
     ],
-    onItemSelect: async ({ index }) => {
-      const playlist = playlists[index];
-      await openPlaylist(playlist);
-    },
   });
 }
 
 async function openPlaylist(playlist) {
   const tracks = await getPlaylistTracks(playlist.id);
   const trackListTemplate = new ListTemplate({
-    id: `playlist-${playlist.id}`,
-    title: playlist.name,
+    title: { text: playlist.name },
     sections: [
       {
-        items: tracks.map((t) => ({
-          id: t.id,
-          text: t.title,
-          detailText: t.additional?.song_tag?.artist || '',
+        items: tracks.map((t, index) => ({
+          title: { text: t.title },
+          subtitle: { text: t.additional?.song_tag?.artist || '' },
+          onPress: async () => {
+            const playerTracks = await Promise.all(
+              tracks.map(async (st) => ({
+                id: st.id,
+                url: await getStreamUrl(st.id),
+                title: st.title,
+                artist: st.additional?.song_tag?.artist || '',
+                album: st.additional?.song_tag?.album || '',
+              }))
+            );
+            await loadPlaylist(playerTracks);
+            await playTrackAt(index);
+            
+            // Push Now Playing template
+            new NowPlayingTemplate({}).push();
+          },
         })),
       },
     ],
-    onItemSelect: async ({ index }) => {
-      const playerTracks = await Promise.all(
-        tracks.map(async (t) => ({
-          id: t.id,
-          url: await getStreamUrl(t.id),
-          title: t.title,
-          artist: t.additional?.song_tag?.artist || '',
-          album: t.additional?.song_tag?.album || '',
-        }))
-      );
-      await loadPlaylist(playerTracks);
-      await playTrackAt(index);
-      CarPlay.pushTemplate(new NowPlayingTemplate({}));
-    },
   });
 
-  CarPlay.pushTemplate(trackListTemplate);
+  trackListTemplate.push();
 }
