@@ -22,3 +22,5 @@ XCarAudio/nas_agent/__pycache__/
 XCarAudio/.yarn/install-state.gz
 .DS_Store
 .claude/settings.local.json
+.claude/settings.local.json
+.claude/settings.local.json
