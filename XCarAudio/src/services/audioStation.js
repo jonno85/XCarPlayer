@@ -136,11 +136,12 @@ async function resolveQuickConnect(quickConnectId) {
     const candidates = [];
     appendCandidate(candidates, smartdns.host, smartdns.port || service.smartdns_port || payload.port);
     appendCandidate(candidates, service.relay_dn, service.relay_port);
+    appendCandidate(candidates, service.relay_ip, service.relay_port);
     appendCandidate(candidates, server.ddns, smartdns.port || service.smartdns_port || payload.port);
     appendCandidate(candidates, env.control_host, env.control_port);
-    console.log('[audioStation] QuickConnect candidates', candidates);
-
+    appendCandidate(candidates, env.relay_host, env.relay_port);
     const uniqueCandidates = [...new Set(candidates.filter(Boolean))];
+    console.log('[audioStation] QuickConnect candidates', JSON.stringify(uniqueCandidates));
     for (const candidate of uniqueCandidates) {
       try {
         console.log('[audioStation] Testing QuickConnect trying candidate', candidate);
@@ -155,10 +156,10 @@ async function resolveQuickConnect(quickConnectId) {
             session: 'AudioStation',
             format: 'cookie',
           },
-          timeout: 20000,
+          timeout: 25000,
           validateStatus: () => true,
         });
-        console.log('[audioStation] QuickConnect response from candidate', candidate, response?.status, response?.data);
+        console.log('[audioStation] QuickConnect response from candidate', candidate, response?.status, JSON.stringify(response?.data));
 
         if ((response?.status ?? 0) < 500) {
           return candidate;

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { login, logout } from '../services/audioStation';
 import { saveAgentUrl, testAgentConnection } from '../services/nasAgent';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function SettingsScreen() {
+  const queryClient = useQueryClient();
   const [quickConnectId, setQuickConnectId] = useState('jfilippininas');
   const [username, setUsername] = useState('jonathan');
   const [password, setPassword] = useState('Mi?3BsNb');
@@ -27,6 +29,7 @@ export default function SettingsScreen() {
       await login(quickConnectId, username, password, otpToken ? { otpCode, token: otpToken } : undefined);
       setOtpCode('');
       setOtpToken(null);
+      queryClient.invalidateQueries({ queryKey: ['playlists'] });
       Alert.alert('Connected', 'Successfully connected to your Synology NAS.');
     } catch (e) {
       if (e.code === 'OTP_REQUIRED') {
@@ -45,6 +48,7 @@ export default function SettingsScreen() {
     await logout();
     setOtpCode('');
     setOtpToken(null);
+    queryClient.invalidateQueries({ queryKey: ['playlists'] });
     Alert.alert('Disconnected');
   }
 
