@@ -1,8 +1,5 @@
 internal import Expo
-// Migrating to @iternio/react-native-auto-play
-// Class name change to bust symbols cache
 import React
-import CarPlay
 import ReactAppDependencyProvider
 
 @main
@@ -23,6 +20,14 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
+#if os(iOS) || os(tvOS)
+    window = UIWindow(frame: UIScreen.main.bounds)
+    factory.startReactNative(
+      withModuleName: "main",
+      in: window,
+      launchOptions: launchOptions)
+#endif
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -32,17 +37,19 @@ class AppDelegate: ExpoAppDelegate {
   ) -> UIView? {
     if RCTIsNewArchEnabled() {
       if let factory = reactNativeFactory?.rootViewFactory as? ExpoReactRootViewFactory {
-         return factory.superView(
+        return factory.superView(
           withModuleName: moduleName,
           initialProperties: initialProperties,
           launchOptions: nil,
           devMenuConfiguration: nil
         )
       }
-      
+
       return reactNativeFactory?.rootViewFactory.view(
         withModuleName: moduleName,
-        initialProperties: initialProperties
+        initialProperties: initialProperties,
+        launchOptions: nil,
+        devMenuConfiguration: nil
       )
     }
 
