@@ -7,42 +7,96 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 const AGENT_URL_KEY = 'nas_agent_url';
+const AGENT_KEY_KEY = 'nas_agent_key';
+const AGENT_PORT = 8899;
+
+export function deriveAgentUrl(nasBaseUrl) {
+  try {
+    const parsed = new URL(nasBaseUrl);
+    return `http://${parsed.hostname}:${AGENT_PORT}`;
+  } catch {
+    return null;
+  }
+}
+
+const DEFAULT_AGENT_URL = 'http://jfilippininas.synology.me:8899';
 
 async function getBaseUrl() {
-  const url = await SecureStore.getItemAsync(AGENT_URL_KEY);
-  if (!url) throw new Error('NAS agent URL not configured. Set it in Settings.');
-  return url;
+  return (await SecureStore.getItemAsync(AGENT_URL_KEY)) ?? DEFAULT_AGENT_URL;
+}
+
+async function getApiKey() {
+  return (await SecureStore.getItemAsync(AGENT_KEY_KEY)) ?? '';
+}
+
+function authHeaders(key) {
+  return key ? { 'X-API-Key': key } : {};
 }
 
 export async function saveAgentUrl(url) {
-  // Normalise: strip trailing slash
   await SecureStore.setItemAsync(AGENT_URL_KEY, url.replace(/\/$/, ''));
 }
 
-export async function testAgentConnection(url) {
-  const res = await axios.get(`${url.replace(/\/$/, '')}/jobs`, { timeout: 5000 });
+export async function saveAgentKey(key) {
+  await SecureStore.setItemAsync(AGENT_KEY_KEY, key);
+}
+
+export async function testAgentConnection(url, key) {
+  console.log('Testing NAS agent connection to', url);
+  const res = await axios.get(`${url.replace(/\/$/, '')}/jobs`, {
+    timeout: 15000,
+    headers: authHeaders(key),
+  });
   return res.status === 200;
 }
 
+export async function checkAgentHealth() {
+  try {
+    const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+    const res = await axios.get(`${base}/health`, {
+      timeout: 5000,
+      headers: authHeaders(key),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 export async function createDownloadJob({ playlistName, title, artist, searchQuery }) {
-  const base = await getBaseUrl();
-  const res = await axios.post(`${base}/jobs`, {
-    playlist_name: playlistName,
-    title,
-    artist,
-    search_query: searchQuery,
-  });
+  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+  const res = await axios.post(
+    `${base}/jobs`,
+    { playlist_name: playlistName, title, artist, search_query: searchQuery },
+    { headers: authHeaders(key) }
+  );
   return res.data;
 }
 
 export async function getJob(jobId) {
-  const base = await getBaseUrl();
-  const res = await axios.get(`${base}/jobs/${jobId}`);
+  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+  const res = await axios.get(`${base}/jobs/${jobId}`, { headers: authHeaders(key) });
   return res.data;
 }
 
 export async function listJobs() {
-  const base = await getBaseUrl();
-  const res = await axios.get(`${base}/jobs`);
+  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+  const res = await axios.get(`${base}/jobs`, { headers: authHeaders(key) });
+  return res.data;
+}
+
+export async function createPlaylistJob({ playlistUrl, playlistName }) {
+  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+  const res = await axios.post(
+    `${base}/playlist-jobs`,
+    { playlist_url: playlistUrl, playlist_name: playlistName },
+    { headers: authHeaders(key) }
+  );
+  return res.data;
+}
+
+export async function getPlaylistJob(jobId) {
+  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
+  const res = await axios.get(`${base}/playlist-jobs/${jobId}`, { headers: authHeaders(key) });
   return res.data;
 }

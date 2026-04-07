@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { login, logout } from '../services/audioStation';
-import { saveAgentUrl, testAgentConnection } from '../services/nasAgent';
+import { login, logout, getSession } from '../services/audioStation';
+import { saveAgentUrl, saveAgentKey, testAgentConnection, deriveAgentUrl } from '../services/nasAgent';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function SettingsScreen() {
@@ -12,7 +12,7 @@ export default function SettingsScreen() {
   const [otpCode, setOtpCode] = useState('');
   const [otpToken, setOtpToken] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [agentUrl, setAgentUrl] = useState('');
+  const [agentKey, setAgentKey] = useState('');
   const [agentTesting, setAgentTesting] = useState(false);
 
   async function handleLogin() {
@@ -108,27 +108,38 @@ export default function SettingsScreen() {
         <Text style={styles.btnText}>Disconnect</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.label, { marginTop: 32 }]}>NAS Agent URL</Text>
-      <Text style={styles.hint}>e.g. http://your-nas-id.quickconnect.to:8765</Text>
+      <Text style={[styles.label, { marginTop: 32 }]}>NAS Agent API Key</Text>
+      <Text style={styles.hint}>Set the same value as API_KEY in your NAS agent .env</Text>
       <TextInput
         style={styles.input}
-        placeholder="http://..."
+        placeholder="your-secret-key"
         placeholderTextColor="#555"
         autoCapitalize="none"
-        keyboardType="url"
-        value={agentUrl}
-        onChangeText={setAgentUrl}
+        secureTextEntry
+        value={agentKey}
+        onChangeText={setAgentKey}
       />
+
       <TouchableOpacity
         style={styles.btn}
         disabled={agentTesting}
         onPress={async () => {
-          if (!agentUrl) { Alert.alert('Enter the agent URL'); return; }
+          if (!agentKey) { Alert.alert('Enter the API key'); return; }
           setAgentTesting(true);
           try {
-            await testAgentConnection(agentUrl);
-            await saveAgentUrl(agentUrl);
-            Alert.alert('Agent connected', 'NAS agent is reachable and saved.');
+            const session = await getSession();
+            if (!session?.baseUrl) {
+              Alert.alert('Connect to NAS first', 'Log in to your NAS before saving agent settings.');
+              return;
+            }
+            const agentUrl = deriveAgentUrl(session.baseUrl);
+            if (!agentUrl) {
+              Alert.alert('Could not derive agent URL', `Unexpected NAS URL: ${session.baseUrl}`);
+              return;
+            }
+            await testAgentConnection(agentUrl, agentKey);
+            await Promise.all([saveAgentUrl(agentUrl), saveAgentKey(agentKey)]);
+            Alert.alert('Agent connected', `NAS agent reachable at ${agentUrl} — settings saved.`);
           } catch (e) {
             Alert.alert('Agent unreachable', e.message);
           } finally {
@@ -136,7 +147,7 @@ export default function SettingsScreen() {
           }
         }}
       >
-        <Text style={styles.btnText}>{agentTesting ? 'Testing…' : 'Save Agent URL'}</Text>
+        <Text style={styles.btnText}>{agentTesting ? 'Testing…' : 'Save Agent Settings'}</Text>
       </TouchableOpacity>
     </View>
   );

@@ -554,6 +554,15 @@ export async function createPlaylist(name) {
   return normalizePlaylist(data.playlist ?? { id: data.id, name });
 }
 
+export async function searchSongs(keyword) {
+  const data = await audioStationRequest({
+    apiName: 'SYNO.AudioStation.Song',
+    method: 'list',
+    params: { library: 'all', keyword, additional: 'song_tag', limit: 500, offset: 0 },
+  });
+  return (data.songs ?? []).map(normalizeSong);
+}
+
 export async function addSongs(playlistId, songIds) {
   const songs = Array.isArray(songIds) ? songIds.join(',') : String(songIds);
 

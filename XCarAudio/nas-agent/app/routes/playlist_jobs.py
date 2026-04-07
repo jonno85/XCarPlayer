@@ -33,6 +33,7 @@ async def create_playlist_job(req: PlaylistJobRequest):
         "playlist_url": req.playlist_url,
         "playlist_name": req.playlist_name,
         "source": detect_source(req.playlist_url),
+        "spotify_token": req.spotify_token,
         "tracks_total": 0,
         "tracks_done": 0,
         "tracks_failed": 0,
@@ -41,6 +42,8 @@ async def create_playlist_job(req: PlaylistJobRequest):
         "error": None,
     }
     playlist_jobs[job_id] = job
+    if job["source"] == "spotify":
+        log.debug("[%s] spotify_token=%s", job_id, req.spotify_token or "(not provided)")
     asyncio.create_task(_run_playlist_download(job_id))
     return job
 

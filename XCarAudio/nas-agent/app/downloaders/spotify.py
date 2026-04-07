@@ -1,67 +1,80 @@
+"""
+Spotify downloader.
+
+The iOS app fetches a short-lived access token on-device (device IPs are not
+blocked by Spotify) and passes it in the job payload. The agent uses it
+directly to query the Spotify API for track metadata, then downloads each
+track from YouTube via yt-dlp.
+"""
+
+import json
 import logging
-import re
-import subprocess
+import urllib.request
 from pathlib import Path
 
-from app.config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTDL_BIN
+from app.downloaders.base import safe_name, ydl_download, ydl_opts_for_search
 
 log = logging.getLogger("nas-agent.spotify")
 
-# spotDL progress line patterns
-_RE_FOUND = re.compile(r"Found\s+(\d+)\s+song", re.IGNORECASE)
-_RE_DONE = re.compile(r'Downloaded\s+"(.+?)"', re.IGNORECASE)
-_RE_FAIL = re.compile(r'Failed to download\s+"(.+?)"[:\s]+(.*)', re.IGNORECASE)
+_TRACKS_URL = (
+    "https://api.spotify.com/v1/playlists/{id}/tracks"
+    "?fields=items(track(name,artists)),next&limit=100"
+)
+
+
+def _playlist_tracks(playlist_id: str, token: str) -> list[dict]:
+    tracks = []
+    url: str | None = _TRACKS_URL.format(id=playlist_id)
+
+    while url:
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+
+        for item in data.get("items", []):
+            track = item.get("track")
+            if track:
+                tracks.append({
+                    "title": track["name"],
+                    "artist": ", ".join(a["name"] for a in track["artists"]),
+                })
+        url = data.get("next")
+
+    return tracks
+
+
+def _playlist_id(url: str) -> str:
+    if "spotify.com/playlist/" in url:
+        return url.split("spotify.com/playlist/")[1].split("?")[0].split("/")[0]
+    if url.startswith("spotify:playlist:"):
+        return url.split(":")[2]
+    raise ValueError(f"Cannot extract playlist ID from URL: {url}")
 
 
 def download(job: dict, playlist_dir: Path) -> None:
-    """Download a Spotify playlist by calling the spotDL CLI in its isolated venv."""
-    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-        raise RuntimeError(
-            "SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set in .env"
-        )
+    token = job.get("spotify_token")
+    if not token:
+        raise RuntimeError("spotify_token is required — set sp_dc in the app Settings and retry")
 
-    cmd = [
-        SPOTDL_BIN,
-        job["playlist_url"],
-        "--client-id", SPOTIFY_CLIENT_ID,
-        "--client-secret", SPOTIFY_CLIENT_SECRET,
-        "--output", "{artists} - {title}",
-        "--format", "mp3",
-        "--bitrate", "320k",
-        "--print-errors",
-    ]
+    pid = _playlist_id(job["playlist_url"])
+    log.info("[%s] Fetching tracks for playlist %s", job["id"], pid)
 
-    log.info("[%s] Running spotDL: %s", job["id"], job["playlist_url"])
+    tracks = _playlist_tracks(pid, token)
+    job["tracks_total"] = len(tracks)
+    log.info("[%s] %d tracks found", job["id"], len(tracks))
 
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(playlist_dir),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    for track in tracks:
+        title, artist = track["title"], track["artist"]
+        job["current_track"] = f"{artist} - {title}"
 
-    for line in proc.stdout:
-        line = line.strip()
-        if not line:
-            continue
-        log.debug("[%s] spotdl: %s", job["id"], line)
-
-        if m := _RE_FOUND.search(line):
-            job["tracks_total"] = int(m.group(1))
-
-        elif m := _RE_DONE.search(line):
+        output_path = playlist_dir / f"{safe_name(artist)} - {safe_name(title)}.%(ext)s"
+        try:
+            ydl_download(f"{artist} {title} audio", ydl_opts_for_search(output_path))
             job["tracks_done"] += 1
-            job["current_track"] = m.group(1)
-            log.info("[%s] Done: %s", job["id"], m.group(1))
-
-        elif m := _RE_FAIL.search(line):
+            log.info("[%s] Done: %s - %s", job["id"], artist, title)
+        except Exception as exc:
             job["tracks_failed"] += 1
-            job["failed_tracks"].append({"title": m.group(1), "error": m.group(2).strip()})
-            log.warning("[%s] Failed: %s — %s", job["id"], m.group(1), m.group(2).strip())
+            job["failed_tracks"].append({"title": title, "error": str(exc)})
+            log.warning("[%s] Failed: %s — %s", job["id"], title, exc)
 
-    proc.wait()
     job["current_track"] = None
-
-    if proc.returncode != 0 and job["tracks_done"] == 0:
-        raise RuntimeError(f"spotDL exited with code {proc.returncode}")

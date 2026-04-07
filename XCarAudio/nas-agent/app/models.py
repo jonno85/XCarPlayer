@@ -39,6 +39,7 @@ class TrackJobResponse(BaseModel):
 class PlaylistJobRequest(BaseModel):
     playlist_url: str
     playlist_name: str
+    spotify_token: Optional[str] = None
 
 
 class FailedTrack(BaseModel):

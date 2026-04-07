@@ -2,4 +2,3 @@ fastapi==0.135.2
 uvicorn==0.42.0
 yt-dlp==2026.3.17
 mutagen==1.47.0
-# spotdl is installed in /opt/spotdl-venv to avoid its fastapi<0.104 conflict

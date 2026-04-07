@@ -1,61 +1,72 @@
 /**
- * Shows live job status for an active migration.
- * Polls the NAS agent every 3 seconds for in-progress jobs.
+ * Shows live progress for an active playlist migration.
+ * Polls the NAS agent every 3 seconds until the job is done or failed.
+ * On completion, auto-creates (or updates) the playlist in DS Audio.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
-import { getJob } from '../services/nasAgent';
+import { getPlaylistJob } from '../services/nasAgent';
+import { getPlaylists, createPlaylist, addSongs, searchSongs } from '../services/audioStation';
 
 const POLL_INTERVAL_MS = 3000;
 
-const STATUS_COLOR = {
-  pending: '#888',
-  downloading: '#f0a500',
-  done: '#1DB954',
-  failed: '#e74c3c',
-  queue_failed: '#e74c3c',
-};
+const SOURCE_LABEL = { spotify: 'Spotify', youtube: 'YouTube', beatport: 'Beatport', unknown: '' };
 
-const STATUS_LABEL = {
-  pending: '⏳ Pending',
-  downloading: '⬇ Downloading',
-  done: '✓ Done',
-  failed: '✗ Failed',
-  queue_failed: '✗ Queue failed',
-};
+export default function MigrationJobsScreen({ job: initialJob, onBack }) {
+  const [job, setJob] = useState(initialJob);
+  const [playlistStatus, setPlaylistStatus] = useState(null); // null | 'creating' | 'done' | string (error)
+  const playlistCreatedRef = useRef(false);
 
-export default function MigrationJobsScreen({ jobs: initialJobs, queueProgress, queuingActive, onBack }) {
-  const [jobs, setJobs] = useState(initialJobs);
+  const isDone = job.status === 'done' || job.status === 'failed';
 
-  // Update jobs list when new ones come in while queuing is active
+  // Poll job status
   useEffect(() => {
-    setJobs(initialJobs);
-  }, [initialJobs]);
-
-  // Poll active jobs
-  useEffect(() => {
-    const active = jobs.filter((j) => j.jobId && (j.status === 'pending' || j.status === 'downloading'));
-    if (active.length === 0) return;
+    if (isDone) return;
 
     const timer = setInterval(async () => {
-      const updates = await Promise.allSettled(
-        active.map((j) => getJob(j.jobId).then((res) => ({ jobId: j.jobId, status: res.status, error: res.error })))
-      );
-      setJobs((prev) =>
-        prev.map((j) => {
-          const update = updates.find((u) => u.status === 'fulfilled' && u.value.jobId === j.jobId);
-          return update ? { ...j, status: update.value.status, error: update.value.error } : j;
-        })
-      );
+      try {
+        const updated = await getPlaylistJob(job.id);
+        setJob(updated);
+      } catch (e) {
+        // Keep polling; transient network errors are expected on QuickConnect
+      }
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [jobs]);
+  }, [job.id, isDone]);
 
-  const done = jobs.filter((j) => j.status === 'done').length;
-  const failed = jobs.filter((j) => j.status === 'failed' || j.status === 'queue_failed').length;
-  const total = jobs.length;
+  // Auto-create DS Audio playlist when download completes
+  useEffect(() => {
+    if (job.status !== 'done' || playlistCreatedRef.current) return;
+    playlistCreatedRef.current = true;
+    createDsAudioPlaylist(job.playlist_name).catch(() => {});
+  }, [job.status, job.playlist_name]);
+
+  async function createDsAudioPlaylist(name) {
+    setPlaylistStatus('creating');
+    try {
+      const existing = await getPlaylists();
+      let playlist = existing.find((p) => p.name === name);
+      if (!playlist) {
+        playlist = await createPlaylist(name);
+      }
+
+      const songs = await searchSongs(name);
+      if (songs.length > 0) {
+        await addSongs(playlist.id, songs.map((s) => s.id));
+      }
+
+      setPlaylistStatus('done');
+    } catch (e) {
+      setPlaylistStatus(e.message ?? 'Failed to create playlist');
+    }
+  }
+
+  const total = job.tracks_total;
+  const done = job.tracks_done;
+  const failed = job.tracks_failed;
+  const progress = total > 0 ? done / total : 0;
 
   return (
     <View style={styles.container}>
@@ -64,12 +75,22 @@ export default function MigrationJobsScreen({ jobs: initialJobs, queueProgress, 
       </TouchableOpacity>
 
       <View style={styles.summary}>
-        <Text style={styles.heading}>Migration Progress</Text>
-        {queuingActive && (
-          <Text style={styles.queueStatus}>
-            Queuing tracks… {Math.round(queueProgress * 100)}%
-          </Text>
-        )}
+        <View style={styles.headingRow}>
+          <Text style={styles.heading}>{job.playlist_name}</Text>
+          {job.source ? <Text style={styles.sourceBadge}>{SOURCE_LABEL[job.source] || job.source}</Text> : null}
+        </View>
+
+        {/* Progress bar */}
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+        </View>
+
+        {/* Current track */}
+        {job.current_track ? (
+          <Text style={styles.currentTrack} numberOfLines={1}>⬇ {job.current_track}</Text>
+        ) : null}
+
+        {/* Counts */}
         <Text style={styles.counts}>
           <Text style={{ color: '#1DB954' }}>{done} done</Text>
           {'  ·  '}
@@ -77,24 +98,43 @@ export default function MigrationJobsScreen({ jobs: initialJobs, queueProgress, 
           {'  ·  '}
           <Text style={{ color: '#888' }}>{total} total</Text>
         </Text>
+
+        {/* Overall status */}
+        {job.status === 'done' && (
+          <Text style={styles.statusDone}>Download complete</Text>
+        )}
+        {job.status === 'failed' && job.error && (
+          <Text style={styles.statusFailed}>{job.error}</Text>
+        )}
+
+        {/* DS Audio playlist creation status */}
+        {playlistStatus === 'creating' && (
+          <Text style={styles.playlistStatus}>Adding to DS Audio…</Text>
+        )}
+        {playlistStatus === 'done' && (
+          <Text style={[styles.playlistStatus, { color: '#1DB954' }]}>Playlist added to DS Audio</Text>
+        )}
+        {playlistStatus && playlistStatus !== 'creating' && playlistStatus !== 'done' && (
+          <Text style={[styles.playlistStatus, { color: '#e74c3c' }]}>Could not create playlist: {playlistStatus}</Text>
+        )}
       </View>
 
-      <FlatList
-        data={jobs}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <View style={styles.rowInfo}>
-              <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-              <Text style={styles.artist} numberOfLines={1}>{item.artist}</Text>
-              {item.error ? <Text style={styles.errorText} numberOfLines={1}>{item.error}</Text> : null}
-            </View>
-            <Text style={[styles.status, { color: STATUS_COLOR[item.status] || '#888' }]}>
-              {STATUS_LABEL[item.status] || item.status}
-            </Text>
-          </View>
-        )}
-      />
+      {/* Failed tracks */}
+      {job.failed_tracks?.length > 0 && (
+        <View style={styles.failedSection}>
+          <Text style={styles.failedHeading}>Failed tracks</Text>
+          <FlatList
+            data={job.failed_tracks}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={({ item }) => (
+              <View style={styles.failedRow}>
+                <Text style={styles.failedTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.failedError} numberOfLines={1}>{item.error}</Text>
+              </View>
+            )}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -104,17 +144,23 @@ const styles = StyleSheet.create({
   backBtn: { paddingHorizontal: 24, paddingTop: 16 },
   backText: { color: '#1DB954', fontSize: 14 },
   summary: { paddingHorizontal: 24, paddingVertical: 16 },
-  heading: { fontSize: 20, color: '#fff', fontWeight: '700', marginBottom: 4 },
-  queueStatus: { fontSize: 13, color: '#f0a500', marginBottom: 4 },
-  counts: { fontSize: 13, marginTop: 4 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 12, paddingHorizontal: 24,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#222',
+  headingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  heading: { fontSize: 20, color: '#fff', fontWeight: '700', marginRight: 10 },
+  sourceBadge: { fontSize: 11, color: '#888', backgroundColor: '#222', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  progressTrack: { height: 4, backgroundColor: '#333', borderRadius: 2, marginBottom: 10 },
+  progressFill: { height: 4, backgroundColor: '#1DB954', borderRadius: 2 },
+  currentTrack: { fontSize: 12, color: '#f0a500', marginBottom: 8 },
+  counts: { fontSize: 13, marginBottom: 8 },
+  statusDone: { fontSize: 13, color: '#1DB954', marginBottom: 4 },
+  statusFailed: { fontSize: 12, color: '#e74c3c', marginBottom: 4 },
+  playlistStatus: { fontSize: 12, color: '#888', marginTop: 4 },
+  failedSection: { flex: 1, paddingHorizontal: 24 },
+  failedHeading: { fontSize: 13, color: '#aaa', marginBottom: 8, fontWeight: '600' },
+  failedRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#222',
   },
-  rowInfo: { flex: 1, marginRight: 12 },
-  title: { fontSize: 14, color: '#fff' },
-  artist: { fontSize: 12, color: '#888', marginTop: 2 },
-  errorText: { fontSize: 11, color: '#e74c3c', marginTop: 2 },
-  status: { fontSize: 12, flexShrink: 0 },
+  failedTitle: { fontSize: 13, color: '#fff' },
+  failedError: { fontSize: 11, color: '#e74c3c', marginTop: 2 },
 });
