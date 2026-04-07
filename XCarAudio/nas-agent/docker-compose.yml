@@ -10,5 +10,7 @@ services:
       # Map to your AudioStation music folder on the NAS
       # DSM default: /volume1/music
       - /volume1/music:/music
+    env_file:
+      - .env
     environment:
       MUSIC_DIR: /music
