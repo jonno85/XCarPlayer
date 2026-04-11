@@ -7,12 +7,15 @@
  * 5. Progress screen polls job status
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
 } from 'react-native';
 import { startPlaylistMigration } from '../services/migration';
 import MigrationJobsScreen from './MigrationJobsScreen';
+import {
+  getValidSpotifyToken, getSpotifyAuthMode, getSpotifyManualCredential, getDefaultPlaylistUrl,
+} from '../services/spotifyAuth';
 
 function detectSource(url) {
   if (!url) return null;
@@ -31,10 +34,14 @@ function defaultPlaylistName(url) {
 }
 
 export default function MigrationScreen() {
-  const [playlistUrl, setPlaylistUrl] = useState('');
-  const [playlistName, setPlaylistName] = useState('');
+  const [playlistUrl, setPlaylistUrl] = useState('https://open.spotify.com/playlist/5jkcDwuWgkdxndfSZcVOAu?si=xWKCZPJ5SOSOh5hDmIC_jQ');
+  const [playlistName, setPlaylistName] = useState('2026');
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState(null);
+
+  useEffect(() => {
+    getDefaultPlaylistUrl().then((url) => { if (url) setPlaylistUrl(url); });
+  }, []);
 
   const source = detectSource(playlistUrl);
 
@@ -45,11 +52,7 @@ export default function MigrationScreen() {
     }
   }
 
-  async function handleMigrate() {
-    if (!playlistUrl.trim()) { Alert.alert('Enter a playlist URL'); return; }
-    if (!playlistName.trim()) { Alert.alert('Enter a playlist name'); return; }
-    if (!source) { Alert.alert('Unsupported URL', 'Paste a Spotify, YouTube, or Beatport playlist URL.'); return; }
-
+  async function runMigrate() {
     setLoading(true);
     try {
       const created = await startPlaylistMigration(playlistUrl.trim(), playlistName.trim());
@@ -59,6 +62,35 @@ export default function MigrationScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMigrate() {
+    if (!playlistUrl.trim()) { Alert.alert('Enter a playlist URL'); return; }
+    if (!playlistName.trim()) { Alert.alert('Enter a playlist name'); return; }
+    if (!source) { Alert.alert('Unsupported URL', 'Paste a Spotify, YouTube, or Beatport playlist URL.'); return; }
+
+    if (source === 'Spotify') {
+      const [token, authMode, manualCredential] = await Promise.all([
+        getValidSpotifyToken(),
+        getSpotifyAuthMode(),
+        getSpotifyManualCredential(),
+      ]);
+      const hasCredential = authMode === 'manual' ? !!manualCredential?.trim() : !!token;
+      if (!hasCredential) {
+        Alert.alert(
+          'Spotify not connected',
+          authMode === 'manual'
+            ? 'No manual credential is set. Go to Settings → Spotify to paste a token or sp_dc cookie. Private playlists will fail without it.'
+            : 'Your Spotify session has expired or was never set up. Go to Settings → Spotify to reconnect. Private playlists will fail without it.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Continue anyway', onPress: runMigrate },
+          ]
+        );
+        return;
+      }
+    }
+    runMigrate();
   }
 
   if (job) {
@@ -71,11 +103,13 @@ export default function MigrationScreen() {
   }
 
   return (
+    <>
     <View style={styles.container}>
       <Text style={styles.heading}>Migrate a Playlist</Text>
       <Text style={styles.sub}>Paste a playlist URL to download it to your NAS</Text>
 
       <Text style={styles.label}>Playlist URL</Text>
+      <Text style={styles.hint}>Spotify public playlists can work via backend app credentials; private playlists need user auth</Text>
       <TextInput
         style={styles.input}
         placeholder="https://open.spotify.com/playlist/… or YouTube / Beatport"
@@ -113,6 +147,7 @@ export default function MigrationScreen() {
         }
       </TouchableOpacity>
     </View>
+    </>
   );
 }
 

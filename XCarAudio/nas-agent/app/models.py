@@ -40,11 +40,19 @@ class PlaylistJobRequest(BaseModel):
     playlist_url: str
     playlist_name: str
     spotify_token: Optional[str] = None
+    spotify_credential: Optional[str] = None
 
 
 class FailedTrack(BaseModel):
     title: str
     error: str
+
+
+class SpotifyChangeSummary(BaseModel):
+    had_previous_snapshot: bool
+    added_count: int
+    removed_count: int
+    unchanged_count: int
 
 
 class PlaylistJobResponse(BaseModel):
@@ -58,4 +66,5 @@ class PlaylistJobResponse(BaseModel):
     tracks_failed: int
     current_track: Optional[str]
     failed_tracks: list[FailedTrack]
+    spotify_changes: Optional[SpotifyChangeSummary] = None
     error: Optional[str]

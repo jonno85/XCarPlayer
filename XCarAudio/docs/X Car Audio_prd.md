@@ -108,10 +108,11 @@ Mobile application (Expo bare workflow, iOS-first) that aggregates playlists fro
 ### Phase 2 — Migration Pipeline ✅ `phase/2-migration-pipeline`
 - NAS Docker agent (`nas-agent/`): FastAPI + yt-dlp, POST /jobs, GET /jobs/{id}, MP3 to AudioStation folder
 - Spotify OAuth (PKCE) via `expo-auth-session` → playlist + track metadata read
+- Spotify public metadata fallback via Client Credentials (`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`)
 - Migration orchestrator: queues each track as NAS agent job with progress callback
-- MigrationScreen: source picker → Spotify playlist picker → live job status
+- MigrationScreen: paste playlist URL → detect source → live job status
 - MigrationJobsScreen: per-track status (pending / downloading / done / failed) with 3s polling
-- Settings: NAS agent URL field + connectivity test
+- Settings: NAS agent URL field + connectivity test + Spotify auth mode (`WebView login` or manual token / cookie)
 - Deploy: `docker-compose up` on NAS, mounts `/volume1/music`, accessible via QuickConnect port 8765
 
 ### Phase 3 — Beatport + App Store

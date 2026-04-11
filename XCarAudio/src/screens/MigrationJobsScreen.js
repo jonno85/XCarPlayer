@@ -10,8 +10,20 @@ import { getPlaylistJob } from '../services/nasAgent';
 import { getPlaylists, createPlaylist, addSongs, searchSongs } from '../services/audioStation';
 
 const POLL_INTERVAL_MS = 3000;
+const SONG_BATCH_SIZE = 100;
 
 const SOURCE_LABEL = { spotify: 'Spotify', youtube: 'YouTube', beatport: 'Beatport', unknown: '' };
+
+function chunks(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function normalizeErrorMessage(error) {
+  if (!error) return 'Failed to create playlist';
+  return error.message || 'Failed to create playlist';
+}
 
 export default function MigrationJobsScreen({ job: initialJob, onBack }) {
   const [job, setJob] = useState(initialJob);
@@ -54,12 +66,16 @@ export default function MigrationJobsScreen({ job: initialJob, onBack }) {
 
       const songs = await searchSongs(name);
       if (songs.length > 0) {
-        await addSongs(playlist.id, songs.map((s) => s.id));
+        const uniqueSongIds = [...new Set(songs.map((s) => s.id).filter(Boolean))];
+        for (const batch of chunks(uniqueSongIds, SONG_BATCH_SIZE)) {
+          await addSongs(playlist.id, batch);
+        }
       }
 
       setPlaylistStatus('done');
     } catch (e) {
-      setPlaylistStatus(e.message ?? 'Failed to create playlist');
+      playlistCreatedRef.current = false;
+      setPlaylistStatus(normalizeErrorMessage(e));
     }
   }
 
@@ -115,7 +131,18 @@ export default function MigrationJobsScreen({ job: initialJob, onBack }) {
           <Text style={[styles.playlistStatus, { color: '#1DB954' }]}>Playlist added to DS Audio</Text>
         )}
         {playlistStatus && playlistStatus !== 'creating' && playlistStatus !== 'done' && (
-          <Text style={[styles.playlistStatus, { color: '#e74c3c' }]}>Could not create playlist: {playlistStatus}</Text>
+          <>
+            <Text style={[styles.playlistStatus, { color: '#e74c3c' }]}>Could not create playlist: {playlistStatus}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => {
+                playlistCreatedRef.current = true;
+                createDsAudioPlaylist(job.playlist_name).catch(() => {});
+              }}
+            >
+              <Text style={styles.retryText}>Retry Playlist Sync</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
 
@@ -154,6 +181,15 @@ const styles = StyleSheet.create({
   statusDone: { fontSize: 13, color: '#1DB954', marginBottom: 4 },
   statusFailed: { fontSize: 12, color: '#e74c3c', marginBottom: 4 },
   playlistStatus: { fontSize: 12, color: '#888', marginTop: 4 },
+  retryBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  retryText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   failedSection: { flex: 1, paddingHorizontal: 24 },
   failedHeading: { fontSize: 13, color: '#aaa', marginBottom: 8, fontWeight: '600' },
   failedRow: {

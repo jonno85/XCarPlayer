@@ -1747,6 +1747,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-cookies/cookies@npm:^6.2.1":
+  version: 6.2.1
+  resolution: "@react-native-cookies/cookies@npm:6.2.1"
+  dependencies:
+    invariant: "npm:^2.2.4"
+  peerDependencies:
+    react-native: ">= 0.60.2"
+  checksum: 10c0/7f3b6dcd966326587196d674491275ae52c574ae46c765981327c541336de58963d33e4fcdc5a55d4041f9b0b520840db4c79d880a43464728a115e2dff39ffa
+  languageName: node
+  linkType: hard
+
 "@react-native/assets-registry@npm:0.83.4":
   version: 0.83.4
   resolution: "@react-native/assets-registry@npm:0.83.4"
@@ -2766,10 +2777,10 @@ __metadata:
 
 "carplay-now-playing@file:./modules/carplay-now-playing::locator=x-car-audio%40workspace%3A.":
   version: 1.0.0
-  resolution: "carplay-now-playing@file:./modules/carplay-now-playing#./modules/carplay-now-playing::hash=92b524&locator=x-car-audio%40workspace%3A."
+  resolution: "carplay-now-playing@file:./modules/carplay-now-playing#./modules/carplay-now-playing::hash=8d0e0f&locator=x-car-audio%40workspace%3A."
   peerDependencies:
     expo: "*"
-  checksum: 10c0/e2e4faada7563632073897f31f6366d2b8fd139927700abd53c62044b3c90dc6ecb580752522c04597b0a9b3bf82dca8a4e9e34868c6211a86970e53954e68d0
+  checksum: 10c0/a6e3132a67e333dd529e616374fea0df55bfbad39a0f9119274ba729c3c12fa2a1ba634fcc64ecf0dd880d75032eba7431d11f79f35489a083065ff7f11f40b2
   languageName: node
   linkType: hard
 
@@ -3984,7 +3995,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"invariant@npm:^2.2.4":
+"invariant@npm:2.2.4, invariant@npm:^2.2.4":
   version: 2.2.4
   resolution: "invariant@npm:2.2.4"
   dependencies:
@@ -5469,6 +5480,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-webview@npm:^13.16.1":
+  version: 13.16.1
+  resolution: "react-native-webview@npm:13.16.1"
+  dependencies:
+    escape-string-regexp: "npm:^4.0.0"
+    invariant: "npm:2.2.4"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/8fdf14447bc430100d78030b8fdb60df223bd51cdb25c06d58757962fea8ad0cd9cdb13a7aa40ff795c671d2b04a561cbeb2b5795d95780d7f0d3734573ebeeb
+  languageName: node
+  linkType: hard
+
 "react-native@npm:0.83.4":
   version: 0.83.4
   resolution: "react-native@npm:0.83.4"
@@ -6397,6 +6421,7 @@ __metadata:
   resolution: "x-car-audio@workspace:."
   dependencies:
     "@iternio/react-native-auto-play": "npm:^0.3.6"
+    "@react-native-cookies/cookies": "npm:^6.2.1"
     "@react-navigation/bottom-tabs": "npm:^7.15.9"
     "@react-navigation/native": "npm:^7.2.2"
     "@react-navigation/native-stack": "npm:^7.14.10"
@@ -6414,6 +6439,7 @@ __metadata:
     react-native-safe-area-context: "npm:~5.6.2"
     react-native-screens: "npm:~4.23.0"
     react-native-track-player: "npm:^4.1.2"
+    react-native-webview: "npm:^13.16.1"
   languageName: unknown
   linkType: soft
 

@@ -10,7 +10,11 @@ services:
       # Map to your AudioStation music folder on the NAS
       # DSM default: /volume1/music
       - /volume1/music:/music
+      # - /tmp/music:/music
     env_file:
       - .env
     environment:
       MUSIC_DIR: /music
+      # Optional: use Spotify Client Credentials flow for public playlist metadata.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}

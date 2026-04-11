@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { getSpotifyAuthMode, getSpotifyManualCredential, getValidSpotifyToken } from './spotifyAuth';
 
 const AGENT_URL_KEY = 'nas_agent_url';
 const AGENT_KEY_KEY = 'nas_agent_key';
@@ -19,7 +20,8 @@ export function deriveAgentUrl(nasBaseUrl) {
   }
 }
 
-const DEFAULT_AGENT_URL = 'http://jfilippininas.synology.me:8899';
+const DEFAULT_AGENT_URL =
+  process.env.EXPO_PUBLIC_AGENT_URL || 'http://jfilippininas.synology.me:8899';
 
 async function getBaseUrl() {
   return (await SecureStore.getItemAsync(AGENT_URL_KEY)) ?? DEFAULT_AGENT_URL;
@@ -27,6 +29,14 @@ async function getBaseUrl() {
 
 async function getApiKey() {
   return (await SecureStore.getItemAsync(AGENT_KEY_KEY)) ?? '';
+}
+
+export async function getAgentUrl() {
+  return SecureStore.getItemAsync(AGENT_URL_KEY);
+}
+
+export async function getAgentKey() {
+  return SecureStore.getItemAsync(AGENT_KEY_KEY);
 }
 
 function authHeaders(key) {
@@ -86,12 +96,24 @@ export async function listJobs() {
 }
 
 export async function createPlaylistJob({ playlistUrl, playlistName }) {
-  const [base, key] = await Promise.all([getBaseUrl(), getApiKey()]);
-  const res = await axios.post(
-    `${base}/playlist-jobs`,
-    { playlist_url: playlistUrl, playlist_name: playlistName },
-    { headers: authHeaders(key) }
-  );
+  const [base, key, spotifyToken, spotifyAuthMode, spotifyManualCredential] = await Promise.all([
+    getBaseUrl(),
+    getApiKey(),
+    getValidSpotifyToken(),
+    getSpotifyAuthMode(),
+    getSpotifyManualCredential(),
+  ]);
+
+  const body = { playlist_url: playlistUrl, playlist_name: playlistName };
+  const credential = spotifyManualCredential?.trim() ?? '';
+
+  if (spotifyAuthMode === 'manual' && credential) {
+    body.spotify_credential = credential;
+  } else if (spotifyToken) {
+    body.spotify_token = spotifyToken;
+  }
+
+  const res = await axios.post(`${base}/playlist-jobs`, body, { headers: authHeaders(key) });
   return res.data;
 }
 

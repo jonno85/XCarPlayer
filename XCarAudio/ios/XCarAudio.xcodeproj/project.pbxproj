@@ -10,6 +10,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		688F8E0E2F7FA643003EA71C /* Entitlements.plist in Resources */ = {isa = PBXBuildFile; fileRef = 688F8E0D2F7FA643003EA71C /* Entitlements.plist */; };
+		68C6ABAC2F8537C00045626B /* hapticpatternlibrary.plist in Resources */ = {isa = PBXBuildFile; fileRef = 68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */; };
 		9E3F4F335C312FC7B555F709 /* libPods-XCarAudio.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FBB37BA85F642BEC4ACA510 /* libPods-XCarAudio.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		DE0AFE976DCF853C04E2EED2 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF7810B476B726396879357 /* ExpoModulesProvider.swift */; };
@@ -23,6 +24,7 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = XCarAudio/Info.plist; sourceTree = "<group>"; };
 		3FBB37BA85F642BEC4ACA510 /* libPods-XCarAudio.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-XCarAudio.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		688F8E0D2F7FA643003EA71C /* Entitlements.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Entitlements.plist; sourceTree = "<group>"; };
+		68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = hapticpatternlibrary.plist; sourceTree = "<group>"; };
 		7FAC912A3C7CF555EF2E1E5B /* Pods-XCarAudio.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.debug.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = XCarAudio/SplashScreen.storyboard; sourceTree = "<group>"; };
 		B5210301208B3E0005B6D7CD /* Pods-XCarAudio.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.release.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.release.xcconfig"; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
+				68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */,
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
@@ -197,6 +200,7 @@
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				68C6ABAC2F8537C00045626B /* hapticpatternlibrary.plist in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				688F8E0E2F7FA643003EA71C /* Entitlements.plist in Resources */,
 				F52E028738A5C1F2206FD291 /* PrivacyInfo.xcprivacy in Resources */,

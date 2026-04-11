@@ -34,11 +34,13 @@ async def create_playlist_job(req: PlaylistJobRequest):
         "playlist_name": req.playlist_name,
         "source": detect_source(req.playlist_url),
         "spotify_token": req.spotify_token,
+        "spotify_credential": req.spotify_credential,
         "tracks_total": 0,
         "tracks_done": 0,
         "tracks_failed": 0,
         "current_track": None,
         "failed_tracks": [],
+        "spotify_changes": None,
         "error": None,
     }
     playlist_jobs[job_id] = job
