@@ -42,7 +42,39 @@ source env/bin/activate
 echo "[3/4] Installing dependencies (spotdl, spotipy, yt-dlp)..."
 pip install --upgrade pip spotdl spotipy yt-dlp
 
-# Run the python script
-echo "[4/4] Starting download_spotify_playlist.py..."
+# Choose download source
 echo "============================================================"
-python download_spotify_playlist.py
+echo "Select download source:"
+echo "  1) Spotify playlist"
+echo "  2) Beatport (track or chart URL)"
+echo "============================================================"
+read -rp "Enter choice [1/2]: " CHOICE
+
+case "$CHOICE" in
+    2)
+        echo "[4/4] Starting Beatport track download..."
+        echo "============================================================"
+        echo "Enter the artist and track name to search YouTube Music."
+        echo "(The yt-dlp Beatport extractor is currently broken upstream.)"
+        echo ""
+        read -rp "Artist name: " BP_ARTIST
+        read -rp "Track name:  " BP_TRACK
+        read -rp "Enter output directory (default: downloads): " OUT_DIR
+        OUT_DIR="${OUT_DIR:-downloads}"
+        mkdir -p "$OUT_DIR"
+        SEARCH_QUERY="$BP_ARTIST - $BP_TRACK"
+        echo ""
+        echo "Searching YouTube Music for: $SEARCH_QUERY"
+        yt-dlp \
+            --extract-audio \
+            --audio-format mp3 \
+            --audio-quality 0 \
+            --output "$OUT_DIR/%(uploader)s - %(title)s.%(ext)s" \
+            "ytsearch1:$SEARCH_QUERY"
+        ;;
+    *)
+        echo "[4/4] Starting download_spotify_playlist.py..."
+        echo "============================================================"
+        python download_spotify_playlist.py
+        ;;
+esac
