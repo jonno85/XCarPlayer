@@ -1,0 +1,6 @@
+# Installed automatically by launch.py into .music-library-venv.
+yt-dlp
+spotipy
+requests
+beautifulsoup4
+imageio-ffmpeg
