@@ -45,6 +45,8 @@ The app opens at a random `127.0.0.1` address in the default browser. It only li
 
 For Spotify, create a free application at [Spotify for Developers](https://developer.spotify.com/dashboard) and paste its Client ID and Client Secret into the UI. They are used only for that download and are not stored.
 
+If YouTube asks you to sign in or confirms that you are not a bot, expand **Only if YouTube asks you to sign in** and choose the browser where you are already signed in. The downloader reads that browser’s local cookies only for the requested download; it never uploads or saves them.
+
 The default folder and update preference are stored in the operating system’s per-user configuration location, not in this repository.
 
 ## Updates
@@ -55,7 +57,7 @@ Packaged or ZIP copies cannot safely rewrite themselves. The same button checks 
 
 ## Publish no-install bundles
 
-The GitHub Actions workflow at `.github/workflows/build-desktop.yml` creates Windows, macOS, and Linux artifacts with PyInstaller. Attach the matching artifacts to a GitHub Release and tag that release with the same version as `APP_VERSION` in `music_downloader_core.py`.
+The GitHub Actions workflow at `.github/workflows/build-desktop.yml` creates Windows, macOS, and Linux artifacts with PyInstaller. Publishing a GitHub Release attaches the matching bundles automatically; tag that release with the same version as `APP_VERSION` in `music_downloader_core.py`. A manually dispatched workflow keeps bundles as downloadable workflow artifacts.
 
 ## Important use note
 

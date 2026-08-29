@@ -61,6 +61,12 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 "rights_confirmed": False,
             })
 
+    def test_youtube_cookie_browser_is_limited_to_supported_browser_names(self) -> None:
+        manager = DownloadManager()
+        self.assertEqual(manager._youtube_cookie_browser({"youtube_browser": "firefox"}), "firefox")
+        with self.assertRaisesRegex(InputError, "supported browser"):
+            manager._youtube_cookie_browser({"youtube_browser": "not-a-browser"})
+
 
 if __name__ == "__main__":
     unittest.main()
