@@ -3,6 +3,7 @@ songs.txt
 
 env/
 .music-library-venv/
+.music-library-bootstrap/
 __pycache__/
 downloads/
 build/
