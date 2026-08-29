@@ -107,7 +107,14 @@ def main() -> int:
             print("The app libraries could not be installed. Check your internet connection and try again.")
             return 1
 
-    return subprocess.call([str(python), str(ROOT / "music_downloader_ui.py")], cwd=ROOT)
+    process = subprocess.Popen([str(python), str(ROOT / "music_downloader_ui.py")], cwd=ROOT)
+    try:
+        return process.wait()
+    except KeyboardInterrupt:
+        # Ctrl+C reaches the server too; suppress the parent-process traceback.
+        if process.poll() is None:
+            process.terminate()
+        return 130
 
 
 if __name__ == "__main__":
