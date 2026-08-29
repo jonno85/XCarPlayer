@@ -50,7 +50,7 @@ def create_environment() -> bool:
     try:
         venv.EnvBuilder(with_pip=True).create(VENV_DIRECTORY)
         return True
-    except (OSError, ValueError, subprocess.CalledProcessError):
+    except (OSError, ValueError, subprocess.CalledProcessError, SystemExit):
         # Debian's slim Python omits ensurepip. Bootstrap virtualenv locally so no
         # system package or administrator access is needed.
         print("Using a local environment bootstrapper…")
