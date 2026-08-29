@@ -19,6 +19,7 @@ PyInstaller.__main__.run(
         "--windowed",
         "--name",
         "MusicLibraryDownloader",
+        f"--specpath={ROOT / 'build'}",
         f"--add-data={ROOT / 'web'}{separator}web",
         str(ROOT / "music_downloader_ui.py"),
     ]
