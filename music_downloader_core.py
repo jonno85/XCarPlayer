@@ -25,6 +25,7 @@ APP_VERSION = "1.0.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}
+SUPPORTED_COOKIE_BROWSERS = {"", "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi"}
 
 
 class InputError(ValueError):
@@ -386,6 +387,7 @@ class DownloadManager:
             "failed": 0,
             "output_dir": str(output_directory),
             "log": [],
+            "needs_browser_cookies": False,
         }
         with self._lock:
             self._jobs[job_id] = job
@@ -435,6 +437,8 @@ class DownloadManager:
                 except Exception as error:  # Keep processing a list after a failed match.
                     with self._lock:
                         self._jobs[job_id]["failed"] += 1
+                        if "sign in to confirm you're not a bot" in str(error).lower():
+                            self._jobs[job_id]["needs_browser_cookies"] = True
                     self._log(job_id, f"Could not download {track.label}: {error}")
             result = self.snapshot(job_id)
             if result["completed"]:
@@ -448,11 +452,18 @@ class DownloadManager:
                     ),
                 )
             else:
+                if result["needs_browser_cookies"]:
+                    message = (
+                        "YouTube asked you to sign in. Under the YouTube link, choose the "
+                        "browser where you are signed in, then try again."
+                    )
+                else:
+                    message = "No tracks were downloaded. See details below."
                 self._update(
                     job_id,
                     state="failed",
                     current="",
-                    message="No tracks were downloaded. See details below.",
+                    message=message,
                 )
         except InputError as error:
             self._update(job_id, state="failed", message=str(error), current="")
@@ -468,8 +479,9 @@ class DownloadManager:
         url = str(payload.get("url", ""))
         if source == "youtube":
             validate_source_url("youtube", url)
+            browser = self._youtube_cookie_browser(payload)
             if str(payload.get("download_type", "single")) == "playlist":
-                return self._youtube_playlist_tracks(url)
+                return self._youtube_playlist_tracks(url, browser)
             return [Track(title="YouTube item", direct_url=url)]
         if source == "spotify":
             return spotify_tracks(
@@ -479,7 +491,13 @@ class DownloadManager:
             )
         return beatport_tracks(url)
 
-    def _youtube_playlist_tracks(self, url: str) -> List[Track]:
+    def _youtube_cookie_browser(self, payload: Dict[str, Any]) -> str:
+        browser = str(payload.get("youtube_browser", "")).strip().lower()
+        if browser not in SUPPORTED_COOKIE_BROWSERS:
+            raise InputError("Choose a supported browser for YouTube sign-in, or leave it set to none.")
+        return browser
+
+    def _youtube_playlist_tracks(self, url: str, browser: str) -> List[Track]:
         """Expand a playlist once so the UI can report useful item progress."""
         try:
             import yt_dlp
@@ -487,6 +505,8 @@ class DownloadManager:
             raise InputError("Download support is still installing. Restart the app and try again.") from error
 
         options = {"extract_flat": "in_playlist", "quiet": True, "no_warnings": True}
+        if browser:
+            options["cookiesfrombrowser"] = (browser,)
         try:
             with yt_dlp.YoutubeDL(options) as downloader:
                 playlist = downloader.extract_info(url, download=False)
@@ -549,6 +569,9 @@ class DownloadManager:
             ],
             "progress_hooks": [self._progress_hook(job_id, track.label)],
         }
+        browser = self._youtube_cookie_browser(payload)
+        if browser:
+            options["cookiesfrombrowser"] = (browser,)
         if track.artist:
             options["postprocessor_args"] = {
                 "FFmpegMetadata": [

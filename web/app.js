@@ -54,6 +54,7 @@
       $("#url-helper").textContent = detail.helper;
     }
     $("#download-type-section").classList.toggle("hidden", source !== "youtube");
+    $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube");
     $("#spotify-credentials").classList.toggle("hidden", source !== "spotify");
   }
 
@@ -138,6 +139,7 @@
       url: $("#source-url").value.trim(),
       tracks: $("#song-list").value,
       download_type: $("#download-type").value,
+      youtube_browser: $("#youtube-browser").value,
       spotify_client_id: $("#spotify-client-id").value.trim(),
       spotify_client_secret: $("#spotify-client-secret").value.trim(),
     };

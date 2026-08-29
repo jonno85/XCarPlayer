@@ -181,6 +181,22 @@
                 <label for="download-type">This link contains</label>
                 <select id="download-type"><option value="single">One song or video</option><option value="playlist">A playlist</option></select>
               </div>
+              <details class="credential-box" id="youtube-sign-in">
+                <summary>Only if YouTube asks you to sign in</summary>
+                <p>Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
+                <div class="field">
+                  <label for="youtube-browser">Signed-in browser</label>
+                  <select id="youtube-browser">
+                    <option value="">None — try without signing in</option>
+                    <option value="chrome">Google Chrome</option>
+                    <option value="edge">Microsoft Edge</option>
+                    <option value="firefox">Mozilla Firefox</option>
+                    <option value="safari">Safari</option>
+                    <option value="brave">Brave</option>
+                    <option value="chromium">Chromium</option>
+                  </select>
+                </div>
+              </details>
               <details class="credential-box hidden" id="spotify-credentials">
                 <summary>Spotify needs a one-time app key — add it here</summary>
                 <p>Spotify links provide track names only. This app looks for the matching audio on YouTube. Create a free key at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify for Developers</a>. Your key is used for this download only and is not saved.</p>
