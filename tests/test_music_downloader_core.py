@@ -1,4 +1,5 @@
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -116,6 +117,48 @@ class MusicDownloaderCoreTests(unittest.TestCase):
 
     def test_track_key_ignores_filename_punctuation(self) -> None:
         self.assertEqual(normalized_track_key("Artist - Song.mp3"), "artist song")
+
+    def test_download_job_records_history_playlist_and_existing_track(self) -> None:
+        class FakeDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload):
+                return [Track(title="Song", artist="Artist")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                path = output_directory / f"Artist - Song.{payload['audio_format']}"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            history = LibraryHistory(root / "history.json")
+            manager = FakeDownloadManager(history)
+            payload = {
+                "source": "text",
+                "tracks": "Artist - Song",
+                "output_dir": str(root / "music"),
+                "rights_confirmed": True,
+                "audio_format": "flac",
+                "rekordbox_playlist": True,
+                "playlist_name": "DJ Set",
+            }
+            first = manager.create(payload)
+            first = self._wait_for_job(manager, first["id"])
+            self.assertEqual((first["completed"], first["existing"]), (1, 0))
+            self.assertTrue(Path(first["playlist_path"]).is_file())
+            self.assertEqual(first["items"][0]["status"], "downloaded")
+
+            second = manager.create(payload)
+            second = self._wait_for_job(manager, second["id"])
+            self.assertEqual((second["completed"], second["existing"]), (0, 1))
+            self.assertEqual(second["items"][0]["status"], "existing")
+
+    def _wait_for_job(self, manager: DownloadManager, job_id: str) -> dict:
+        for _ in range(100):
+            job = manager.snapshot(job_id)
+            if job["state"] in {"complete", "failed"}:
+                return job
+            time.sleep(0.01)
+        self.fail("Download worker did not finish")
 
 
 if __name__ == "__main__":
