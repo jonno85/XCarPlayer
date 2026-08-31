@@ -9,7 +9,9 @@ It accepts:
 - a public Beatport track or playlist link; or
 - a `.txt` file (or pasted list), with one song per line.
 
-Spotify and Beatport links are used to read public track metadata only. Each listed track is then matched against YouTube and saved as an MP3 with embedded title and artist metadata. This keeps the local library in one format rather than attempting to access streaming-service audio.
+Spotify and Beatport links are used to read public track metadata only. Each listed track is then matched against YouTube and saved in the selected format with embedded title and artist metadata. This creates a consistent local library without attempting to access streaming-service audio.
+
+The interface is available in English and Italian. It also includes a native destination-folder picker, download history, in-app play/pause controls, duplicate highlighting, and selectable MP3, M4A, FLAC, WAV, or Opus output.
 
 ## Start it
 
@@ -48,6 +50,22 @@ For Spotify, create a free application at [Spotify for Developers](https://devel
 If YouTube asks you to sign in or confirms that you are not a bot, expand **Only if YouTube asks you to sign in** and choose the browser where you are already signed in. The downloader reads that browser’s local cookies only for the requested download; it never uploads or saves them.
 
 The default folder and update preference are stored in the operating system’s per-user configuration location, not in this repository.
+
+On Linux the native folder button uses `zenity` (GNOME and related desktops) or `kdialog` (KDE). Install either utility if the desktop image does not already include one. Windows and macOS use their built-in folder dialogs.
+
+## Rekordbox workflow
+
+Use the local music folder as the source of truth and let Rekordbox reference it:
+
+1. Choose a stable folder that will not be renamed or moved.
+2. In **Audio format & Rekordbox options**, use MP3 320 kbps for the widest Pioneer/CDJ compatibility. M4A and FLAC are suitable only after checking the target player model.
+3. Enable **Create a Rekordbox-compatible .m3u8 playlist** and import that playlist into Rekordbox.
+4. Let Rekordbox analyze BPM, waveform, key, beatgrid, and cues, then use Rekordbox’s own Device Library export for USB media.
+5. Use **Compare folder** to identify files that are in the folder but not in this app’s history. It is deliberately a read-only diff: it never moves or deletes music.
+
+Do not perform an automatic two-way file sync against Rekordbox’s database. Rekordbox owns cue points, beatgrids, analysis, and device-export state; moving or deleting files behind it creates missing-track references. If the library must live on two computers, sync the stable audio folder one way and relocate missing files from inside Rekordbox.
+
+FLAC and WAV output are lossless containers, but transcoding a lossy YouTube source cannot restore information already removed from that source.
 
 ## Updates
 
