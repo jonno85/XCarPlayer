@@ -10,7 +10,10 @@
       "Bash(git commit:*)",
       "Bash(pip index:*)",
       "Bash(npx expo:*)",
-      "Bash(pod install:*)"
+      "Bash(pod install:*)",
+      "Bash(python3:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(yarn add:*)"
     ]
   }
 }

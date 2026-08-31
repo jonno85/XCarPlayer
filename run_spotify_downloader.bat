@@ -53,9 +53,10 @@ echo.
 echo ============================================================
 echo Select downloader:
 echo   1. Spotify playlist downloader (download_spotify_playlist.py)
-echo   2. YouTube search downloader with Spotify URL support (youtube_search_downloader.py)
+echo   2. YouTube search downloader with Spotify/Beatport URL support (youtube_search_downloader.py)
+echo   3. Beatport playlist downloader (download_beatport_playlist.py)
 echo ============================================================
-set /p CHOICE="Enter choice (1 or 2): "
+set /p CHOICE="Enter choice (1, 2 or 3): "
 
 echo [4/4] Starting downloader...
 echo ============================================================
@@ -63,6 +64,8 @@ if "%CHOICE%"=="1" (
     python download_spotify_playlist.py
 ) else if "%CHOICE%"=="2" (
     python youtube_search_downloader.py
+) else if "%CHOICE%"=="3" (
+    python download_beatport_playlist.py
 ) else (
     echo Invalid choice.
     exit /b 1

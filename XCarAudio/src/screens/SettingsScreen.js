@@ -18,6 +18,7 @@ export default function SettingsScreen() {
   const [password, setPassword] = useState('Mi?3BsNb');
   const [otpCode, setOtpCode] = useState('');
   const [otpToken, setOtpToken] = useState(null);
+  const [trustedDevice, setTrustedDevice] = useState(true);
   const [loading, setLoading] = useState(false);
   const [agentUrl, setAgentUrl] = useState('');
   const [agentKey, setAgentKey] = useState('');
@@ -75,7 +76,7 @@ export default function SettingsScreen() {
     }
     setLoading(true);
     try {
-      await login(quickConnectId, username, password, otpToken ? { otpCode, token: otpToken } : undefined);
+      await login(quickConnectId, username, password, { otpCode: otpToken ? otpCode : undefined, token: otpToken ?? undefined, trustDevice: trustedDevice });
       setOtpCode('');
       setOtpToken(null);
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
@@ -204,6 +205,19 @@ export default function SettingsScreen() {
           />
         </>
       ) : null}
+
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleLabels}>
+          <Text style={styles.toggleTitle}>Trust this device</Text>
+          <Text style={styles.hint}>Skip 2FA on future logins from this device</Text>
+        </View>
+        <Switch
+          value={trustedDevice}
+          onValueChange={setTrustedDevice}
+          trackColor={{ false: '#333', true: '#1DB954' }}
+          thumbColor="#fff"
+        />
+      </View>
 
       <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
         <Text style={styles.btnText}>

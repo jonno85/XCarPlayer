@@ -22,6 +22,9 @@ function chunks(arr, size) {
 
 function normalizeErrorMessage(error) {
   if (!error) return 'Failed to create playlist';
+  if (error.code === 'OTP_REQUIRED' || error.message === 'Two-factor authentication required') {
+    return 'NAS session expired — go to Settings to re-login (2FA required)';
+  }
   return error.message || 'Failed to create playlist';
 }
 

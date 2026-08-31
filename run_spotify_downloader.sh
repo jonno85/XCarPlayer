@@ -58,9 +58,10 @@ echo ""
 echo "============================================================"
 echo "Select downloader:"
 echo "  1. Spotify playlist downloader (download_spotify_playlist.py)"
-echo "  2. YouTube search downloader with Spotify URL support (youtube_search_downloader.py)"
+echo "  2. YouTube search downloader with Spotify/Beatport URL support (youtube_search_downloader.py)"
+echo "  3. Beatport playlist downloader (download_beatport_playlist.py)"
 echo "============================================================"
-read -rp "Enter choice (1 or 2): " CHOICE
+read -rp "Enter choice (1, 2 or 3): " CHOICE
 
 echo "[4/4] Starting downloader..."
 echo "============================================================"
@@ -68,6 +69,8 @@ if [ "$CHOICE" = "1" ]; then
     python download_spotify_playlist.py
 elif [ "$CHOICE" = "2" ]; then
     python youtube_search_downloader.py
+elif [ "$CHOICE" = "3" ]; then
+    python download_beatport_playlist.py
 else
     echo "Invalid choice."
     exit 1

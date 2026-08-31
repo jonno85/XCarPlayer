@@ -46,4 +46,7 @@ def ydl_opts_for_search(output_path: Path) -> dict:
         "no_warnings": True,
         "postprocessors": YDL_AUDIO_POSTPROCESSORS,
         "default_search": "ytsearch1",
+        "socket_timeout": 30,
+        "retries": 3,
+        "fragment_retries": 3,
     }

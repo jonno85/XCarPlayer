@@ -34,15 +34,16 @@ def install_deps():
         return False
 
 
-def get_playlist_songs(playlist_url):
+def get_playlist_songs(playlist_url, cookies_file=None):
     """
-    Get all songs from a public Beatport playlist.
+    Get all songs from a Beatport playlist or track page.
 
     Beatport uses Next.js, which embeds all page data in a
     <script id="__NEXT_DATA__"> JSON blob — no browser/API key needed.
 
     Args:
-        playlist_url (str): Beatport playlist URL
+        playlist_url (str): Beatport playlist/track URL
+        cookies_file (str, optional): Path to a Netscape cookies.txt file
 
     Returns:
         list: List of dicts with 'artist', 'title', 'full_name' keys, or None on error
@@ -63,9 +64,23 @@ def get_playlist_songs(playlist_url):
         'Accept-Language': 'en-US,en;q=0.9',
     }
 
-    print(f"\nFetching Beatport playlist...")
+    cj = None
+    if cookies_file:
+        import os
+        if os.path.exists(cookies_file):
+            try:
+                import http.cookiejar
+                cj = http.cookiejar.MozillaCookieJar(cookies_file)
+                cj.load(ignore_discard=True, ignore_expires=True)
+                print(f"Loaded cookies from {cookies_file}")
+            except Exception as e:
+                print(f"Warning: Could not load cookies file: {e}")
+        else:
+            print(f"Warning: Cookies file '{cookies_file}' not found.")
+
+    print(f"\nFetching Beatport page...")
     try:
-        response = requests.get(playlist_url, headers=headers, timeout=15)
+        response = requests.get(playlist_url, headers=headers, cookies=cj, timeout=15)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Error fetching page: {e}")
@@ -104,13 +119,15 @@ def _extract_tracks(data):
 
     def walk(node):
         if isinstance(node, dict):
-            name = node.get('name', '').strip()
+            name_val = node.get('name')
+            name = name_val.strip() if isinstance(name_val, str) else ''
             artists = node.get('artists')
             # A track node has 'name' (str) and 'artists' (non-empty list)
             if name and isinstance(artists, list) and artists:
                 artist_name = ''
                 if isinstance(artists[0], dict):
-                    artist_name = artists[0].get('name', '').strip()
+                    artist_val = artists[0].get('name')
+                    artist_name = artist_val.strip() if isinstance(artist_val, str) else ''
                 elif isinstance(artists[0], str):
                     artist_name = artists[0].strip()
 

@@ -102,7 +102,47 @@ def install_ytdlp():
         print("✗ Failed to install yt-dlp")
         return False
 
-def download_song(song_name, output_dir='downloads', audio_format='mp3'):
+LOUDNORM_TARGET = 'I=-9:TP=-1.0:LRA=6'
+ENCODER_BY_FORMAT = {'mp3': 'libmp3lame', 'm4a': 'aac'}
+
+def _two_pass_loudnorm(path, audio_format):
+    """Two-pass EBU R128 normalization in-place. Returns measurement dict or None."""
+    import json, tempfile, shutil, re
+
+    # Pass 1: measure
+    pass1 = subprocess.run(
+        ['ffmpeg', '-hide_banner', '-nostats', '-i', path,
+         '-af', f'loudnorm={LOUDNORM_TARGET}:print_format=json',
+         '-f', 'null', '-'],
+        capture_output=True, check=True,
+    )
+    stderr = pass1.stderr.decode(errors='replace')
+    match = re.search(r'\{[^{}]*"input_i"[^{}]*\}', stderr, re.DOTALL)
+    if not match:
+        print('    (could not parse loudnorm measurements)')
+        return None
+    m = json.loads(match.group(0))
+
+    # Pass 2: apply with measured values + linear=true for single-gain normalization
+    encoder = ENCODER_BY_FORMAT.get(audio_format, 'copy')
+    ext = os.path.splitext(path)[1]
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=ext, dir=os.path.dirname(path) or '.')
+    os.close(tmp_fd)
+    filter_str = (
+        f"loudnorm={LOUDNORM_TARGET}"
+        f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
+        f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
+        f":offset={m['target_offset']}:linear=true:print_format=summary"
+    )
+    pass2 = subprocess.run(
+        ['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', path,
+         '-af', filter_str, '-c:a', encoder, '-b:a', '192k', tmp_path],
+        capture_output=True, check=True,
+    )
+    shutil.move(tmp_path, path)
+    return m
+
+def download_song(song_name, output_dir='downloads', audio_format='mp3', normalize=False):
     """
     Search YouTube for a song and download it
 
@@ -118,36 +158,33 @@ def download_song(song_name, output_dir='downloads', audio_format='mp3'):
         search_url = f"ytsearch:{song_name}"
         output_tmpl = os.path.join(output_dir, '%(title)s.%(ext)s')
 
-        if audio_format == 'mp3':
-            # mp3 requires ffmpeg for transcoding
-            cmd = [
-                'yt-dlp', '-x',
-                '--audio-format', 'mp3',
-                '--audio-quality', '192',
-                '-o', output_tmpl,
-                '--no-warnings', '-q',
-                search_url
-            ]
-        else:
-            # m4a: request YouTube's native aac/m4a stream — no ffmpeg needed
-            cmd = [
-                'yt-dlp',
-                '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
-                '--merge-output-format', 'm4a',
-                '-o', output_tmpl,
-                '--no-warnings', '-q',
-                search_url
-            ]
+        cmd = [
+            'yt-dlp', '-x',
+            '--audio-format', audio_format,
+            '--audio-quality', '192',
+            '-o', output_tmpl,
+            '--no-warnings', '-q',
+            '--print', 'after_move:filepath',
+            search_url,
+        ]
+        result = subprocess.run(cmd, check=True, capture_output=True)
+        final_path = result.stdout.decode(errors='replace').strip().splitlines()[-1] if result.stdout else ''
 
-        subprocess.run(cmd, check=True, capture_output=True)
-        
         print(f"  ✓ Downloaded: {song_name}")
+        if normalize and final_path and os.path.exists(final_path):
+            print('    normalizing (two-pass EBU R128)…')
+            m = _two_pass_loudnorm(final_path, audio_format)
+            if m:
+                print(f"    input_i={m['input_i']} LUFS  tp={m['input_tp']} dBTP  lra={m['input_lra']} LU  → target -9 LUFS")
         return True
     except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors='replace') if e.stderr else ''
         print(f"  ✗ Failed: {song_name}")
+        if stderr.strip():
+            print(f"    {stderr.strip()}")
         return False
 
-def download_from_file(file_path, output_dir='downloads', audio_format='mp3'):
+def download_from_file(file_path, output_dir='downloads', audio_format='mp3', normalize=False):
     """
     Download songs from a text file
 
@@ -180,7 +217,7 @@ def download_from_file(file_path, output_dir='downloads', audio_format='mp3'):
     
     for i, song in enumerate(songs, 1):
         print(f"[{i}/{len(songs)}] {song}")
-        if download_song(song, output_dir, audio_format):
+        if download_song(song, output_dir, audio_format, normalize):
             successful += 1
         else:
             failed += 1
@@ -191,7 +228,7 @@ def download_from_file(file_path, output_dir='downloads', audio_format='mp3'):
     print(f"  ✗ Failed: {failed}")
     print(f"  Saved to: {output_dir}")
 
-def download_manual(output_dir='downloads', audio_format='mp3'):
+def download_manual(output_dir='downloads', audio_format='mp3', normalize=False):
     """
     Let user enter song names manually
 
@@ -226,7 +263,7 @@ def download_manual(output_dir='downloads', audio_format='mp3'):
     
     for i, song in enumerate(songs, 1):
         print(f"[{i}/{len(songs)}] {song}")
-        if download_song(song, output_dir, audio_format):
+        if download_song(song, output_dir, audio_format, normalize):
             successful += 1
         else:
             failed += 1
@@ -265,6 +302,9 @@ def main():
     fmt_choice = input("\nEnter choice (1 or 2, default: 1): ").strip()
     audio_format = 'm4a' if fmt_choice == '2' else 'mp3'
 
+    norm_choice = input("\nNormalize audio loudness (EBU R128, -9 LUFS / DJ-set)? (y/n, default: n): ").strip().lower()
+    normalize = norm_choice == 'y'
+
     # Get output directory
     output_dir = input("\nEnter output directory (default: 'downloads'): ").strip()
     if not output_dir:
@@ -274,26 +314,57 @@ def main():
     print("\nSelect input method:")
     print("  1. From text file (one song per line)")
     print("  2. Manual entry")
-    print("  3. Spotify track URL")
+    print("  3. Spotify or Beatport URL (track or playlist)")
 
     choice = input("\nEnter choice (1, 2 or 3): ").strip()
 
     if choice == '1':
         file_path = input("Enter path to text file: ").strip()
-        download_from_file(file_path, output_dir, audio_format)
+        download_from_file(file_path, output_dir, audio_format, normalize)
     elif choice == '2':
-        download_manual(output_dir, audio_format)
+        download_manual(output_dir, audio_format, normalize)
     elif choice == '3':
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        
+        # Ask for cookies if they want to download from Beatport subscription
+        cookies_file = None
+        use_cookies = input("\nUse a cookies file for Beatport subscription (y/n, default: n): ").strip().lower()
+        if use_cookies == 'y':
+            cookies_file = input("Enter path to cookies file (default: cookies.txt): ").strip()
+            if not cookies_file:
+                cookies_file = 'cookies.txt'
+            if not os.path.exists(cookies_file):
+                print(f"Warning: Cookies file '{cookies_file}' not found.")
+                cookies_file = None
+
         while True:
-            spotify_url = input("\nEnter Spotify track URL (or 'exit' to quit): ").strip()
-            if spotify_url.lower() == 'exit':
+            url = input("\nEnter Spotify/Beatport URL (or 'exit' to quit): ").strip()
+            if url.lower() == 'exit':
                 break
-            song_name = spotify_url_to_song_name(spotify_url)
-            if song_name:
-                print(f"Detected: {song_name}")
-                download_song(song_name, output_dir, audio_format)
+            if not url:
+                continue
+
+            if 'spotify.com' in url:
+                song_name = spotify_url_to_song_name(url)
+                if song_name:
+                    print(f"Detected: {song_name}")
+                    download_song(song_name, output_dir, audio_format, normalize)
+            elif 'beatport.com' in url:
+                try:
+                    from beatport_to_youtube_converter import get_playlist_songs
+                    songs = get_playlist_songs(url, cookies_file=cookies_file)
+                    if songs:
+                        print(f"Detected {len(songs)} tracks from Beatport:")
+                        for idx, song in enumerate(songs, 1):
+                            print(f"  [{idx}/{len(songs)}] {song['full_name']}")
+                            download_song(song['full_name'], output_dir, audio_format, normalize)
+                    else:
+                        print("No tracks could be extracted from the Beatport URL.")
+                except Exception as exc:
+                    print(f"Error parsing Beatport URL: {exc}")
+            else:
+                print("Unsupported URL. Please enter a Spotify track or Beatport track/playlist URL.")
     else:
         print("Invalid choice")
         sys.exit(1)

@@ -28,6 +28,7 @@ async function onConnect() {
     rootTemplate.setRootTemplate();
   } catch (error) {
     console.error('[AutoPlay] Error on connect:', error);
+    const detailText = getCarplayErrorText(error);
     
     // Show a helpful error template instead of a black screen
     const errorTemplate = new ListTemplate({
@@ -37,12 +38,20 @@ async function onConnect() {
         items: [{
           type: 'default',
           title: { text: 'Not Connected' },
-          detailedText: { text: 'Please sign in to the app on your phone' }
+          detailedText: { text: detailText }
         }]
       }
     });
     errorTemplate.setRootTemplate();
   }
+}
+
+function getCarplayErrorText(error) {
+  const message = String(error?.message || '').toLowerCase();
+  if (message.includes('not connected') || message.includes('sign in')) {
+    return 'Open Settings on your phone and reconnect to Synology';
+  }
+  return 'Cannot reach your NAS right now. Check phone network/VPN and try again.';
 }
 
 function onDisconnect() {
