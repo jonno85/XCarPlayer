@@ -1,89 +1,22 @@
-# Music Library Downloader
+# XCarPlayer projects
 
-A simple local browser UI for collecting permitted music into a consistent MP3 library.
+This repository contains four related but independently runnable projects:
 
-It accepts:
+| Project | Directory | Purpose |
+| --- | --- | --- |
+| Mobile app | [`mobile-app/`](mobile-app/) | React Native/Expo player and controller for X Car Audio |
+| Synology downloader | [`synology-downloader/`](synology-downloader/) | Dockerized FastAPI download service for a Synology NAS |
+| CLI downloader | [`cli-downloader/`](cli-downloader/) | Legacy interactive Python download scripts |
+| Desktop downloader | [`desktop-downloader/`](desktop-downloader/) | Self-contained local browser UI for Windows, macOS, and Linux |
 
-- a YouTube song or playlist link;
-- a public Spotify track or playlist link;
-- a public Beatport track or playlist link; or
-- a `.txt` file (or pasted list), with one song per line.
+Each directory has its own launcher, dependencies, and documentation. Run commands from the relevant project directory rather than the repository root.
 
-Spotify and Beatport links are used to read public track metadata only. Each listed track is then matched against YouTube and saved in the selected format with embedded title and artist metadata. This creates a consistent local library without attempting to access streaming-service audio.
+## Desktop releases and updates
 
-The interface is available in English and Italian. It also includes a native destination-folder picker, download history, in-app play/pause controls, duplicate highlighting, and selectable MP3, M4A, FLAC, WAV, or Opus output.
+The desktop project is the only project packaged by `.github/workflows/build-desktop.yml`.
 
-## Start it
+- A source checkout finds this repository’s `.git` directory even though the application now lives in `desktop-downloader/`. Its **Check for updates** action fetches and fast-forwards the current Git branch.
+- A packaged copy checks the repository’s GitHub Releases page and directs the user to the newest platform bundle.
+- Moving the desktop code into its own directory therefore does not disable either update path.
 
-### No-install release
-
-GitHub Releases can contain self-contained Windows, macOS, and Linux bundles built by the included workflow. Download the bundle for the operating system, unpack it, and run `MusicLibraryDownloader` (or `MusicLibraryDownloader.exe` on Windows). Python and app libraries are bundled.
-
-### Run from the repository
-
-This path needs Python 3.9+ installed once. The launcher automatically creates a private `.music-library-venv` and installs or updates all app libraries; nothing is installed into the system Python.
-
-| Operating system | Start command |
-| --- | --- |
-| Windows | Double-click `launch.bat` |
-| macOS / Linux | `./launch.sh` |
-| Any | `python3 launch.py` |
-
-On macOS/Linux, make the launcher executable once if needed:
-
-```sh
-chmod +x launch.sh
-./launch.sh
-```
-
-The app opens at a random `127.0.0.1` address in the default browser. It only listens on the local computer. Keep the launcher terminal open while a download is running.
-
-## First use
-
-1. Pick YouTube, Spotify, Beatport, or **Song list**.
-2. Paste the URL, choose a `.txt` file, or paste one song per line.
-3. Choose a music folder and optionally save it as the default.
-4. Confirm you have the right or permission to download the tracks, then start.
-
-For Spotify, create a free application at [Spotify for Developers](https://developer.spotify.com/dashboard) and paste its Client ID and Client Secret into the UI. They are used only for that download and are not stored.
-
-If YouTube asks you to sign in or confirms that you are not a bot, expand **Only if YouTube asks you to sign in** and choose the browser where you are already signed in. The downloader reads that browser’s local cookies only for the requested download; it never uploads or saves them.
-
-The default folder and update preference are stored in the operating system’s per-user configuration location, not in this repository.
-
-On Linux the native folder button uses `zenity` (GNOME and related desktops) or `kdialog` (KDE). Install either utility if the desktop image does not already include one. Windows and macOS use their built-in folder dialogs.
-
-## Rekordbox workflow
-
-Use the local music folder as the source of truth and let Rekordbox reference it:
-
-1. Choose a stable folder that will not be renamed or moved.
-2. In **Audio format & Rekordbox options**, use MP3 320 kbps for the widest Pioneer/CDJ compatibility. M4A and FLAC are suitable only after checking the target player model.
-3. Enable **Create a Rekordbox-compatible .m3u8 playlist** and import that playlist into Rekordbox.
-4. Let Rekordbox analyze BPM, waveform, key, beatgrid, and cues, then use Rekordbox’s own Device Library export for USB media.
-5. Use **Compare folder** to identify files that are in the folder but not in this app’s history. It is deliberately a read-only diff: it never moves or deletes music.
-
-Do not perform an automatic two-way file sync against Rekordbox’s database. Rekordbox owns cue points, beatgrids, analysis, and device-export state; moving or deleting files behind it creates missing-track references. If the library must live on two computers, sync the stable audio folder one way and relocate missing files from inside Rekordbox.
-
-FLAC and WAV output are lossless containers, but transcoding a lossy YouTube source cannot restore information already removed from that source.
-
-## Updates
-
-When run from a clean Git checkout, **Check for updates** compares the current branch with `origin` and can apply a fast-forward update. Restart the app afterward so its isolated environment can install any new libraries.
-
-Packaged or ZIP copies cannot safely rewrite themselves. The same button checks GitHub Releases and links to the latest release when one is available.
-
-## Publish no-install bundles
-
-The GitHub Actions workflow at `.github/workflows/build-desktop.yml` creates Windows, macOS, and Linux artifacts with PyInstaller. Publishing a GitHub Release attaches the matching bundles automatically; tag that release with the same version as `APP_VERSION` in `music_downloader_core.py`. A manually dispatched workflow keeps bundles as downloadable workflow artifacts.
-
-## Important use note
-
-Only download audio you own, are licensed to download, or otherwise have permission to save. Service availability and matching quality depend on the source pages and YouTube results; review output files before relying on them for a curated library.
-
-## Development checks
-
-```sh
-python3 -m unittest discover -s tests -v
-python3 -m py_compile launch.py music_downloader_core.py music_downloader_ui.py
-```
+See [`desktop-downloader/README.md`](desktop-downloader/README.md) for usage and Rekordbox guidance.

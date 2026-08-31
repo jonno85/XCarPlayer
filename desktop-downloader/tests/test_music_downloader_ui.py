@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from music_downloader_core import ConfigStore, DownloadManager, LibraryHistory, Track
-from music_downloader_ui import request_handler
+from music_downloader_ui import repository_root, request_handler
 
 
 class MusicDownloaderUiApiTests(unittest.TestCase):
@@ -85,6 +85,14 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         with patch("music_downloader_ui.choose_destination_folder", return_value=str(self.library)):
             selected = self.post_json("/api/pick-folder", {"current": "/tmp"})
         self.assertEqual(selected["path"], str(self.library))
+
+    def test_repository_root_is_found_from_nested_desktop_project(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / ".git").mkdir()
+            nested = root / "desktop-downloader" / "web"
+            nested.mkdir(parents=True)
+            self.assertEqual(repository_root(nested), root)
 
 
 if __name__ == "__main__":

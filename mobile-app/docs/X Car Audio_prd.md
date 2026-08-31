@@ -51,7 +51,7 @@ Mobile application (Expo bare workflow, iOS-first) that aggregates playlists fro
 - API: DSM AudioStation REST API (DSM 7+)
 - NAS must support Docker (DSM 7+ required)
 - Audio files stored in AudioStation-managed folder
-- Output format: **MP3** (primary), MP4 audio accepted
+- Output format: **MP3** (primary)
 
 ---
 
@@ -106,7 +106,7 @@ Mobile application (Expo bare workflow, iOS-first) that aggregates playlists fro
 - React Query for data fetching, SecureStore for credentials
 
 ### Phase 2 — Migration Pipeline ✅ `phase/2-migration-pipeline`
-- NAS Docker agent (`nas-agent/`): FastAPI + yt-dlp, POST /jobs, GET /jobs/{id}, MP3 to AudioStation folder
+- NAS Docker agent (`../../synology-downloader/`): FastAPI + yt-dlp, POST /jobs, GET /jobs/{id}, MP3 to AudioStation folder
 - Spotify OAuth (PKCE) via `expo-auth-session` → playlist + track metadata read
 - Spotify public metadata fallback via Client Credentials (`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`)
 - Migration orchestrator: queues each track as NAS agent job with progress callback
