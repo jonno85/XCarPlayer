@@ -1,137 +1,170 @@
 /**
  * Migration flow:
- * 1. User picks a source (Spotify)
- * 2. Selects a playlist
- * 3. Taps "Migrate" → jobs queued on NAS agent
- * 4. Progress screen polls job status
+ * 1. User pastes a playlist URL (Spotify, YouTube, or Beatport)
+ * 2. Source is auto-detected from the URL
+ * 3. User optionally edits the playlist name (used as AudioStation folder)
+ * 4. Taps "Migrate" → single job queued on NAS agent
+ * 5. Progress screen polls job status
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
+  View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { useSpotifyAuth, exchangeSpotifyCode, getSpotifyPlaylists, getSpotifyPlaylistTracks } from '../services/spotify';
-import { startMigration } from '../services/migration';
+import { startPlaylistMigration } from '../services/migration';
 import MigrationJobsScreen from './MigrationJobsScreen';
+import {
+  getValidSpotifyToken, getSpotifyAuthMode, getSpotifyManualCredential, getDefaultPlaylistUrl,
+} from '../services/spotifyAuth';
+
+function detectSource(url) {
+  if (!url) return null;
+  if (url.includes('spotify.com') || url.startsWith('spotify:')) return 'Spotify';
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'YouTube';
+  if (url.includes('beatport.com')) return 'Beatport';
+  return null;
+}
+
+function defaultPlaylistName(url) {
+  try {
+    const source = detectSource(url);
+    if (source) return `${source} Playlist`;
+  } catch {}
+  return '';
+}
 
 export default function MigrationScreen() {
-  const [step, setStep] = useState('source'); // source | playlists | jobs
-  const [jobs, setJobs] = useState([]);
-  const [queueProgress, setQueueProgress] = useState(0);
-  const [queuingActive, setQueuingActive] = useState(false);
+  const [playlistUrl, setPlaylistUrl] = useState('https://open.spotify.com/playlist/5jkcDwuWgkdxndfSZcVOAu?si=xWKCZPJ5SOSOh5hDmIC_jQ');
+  const [playlistName, setPlaylistName] = useState('2026');
+  const [loading, setLoading] = useState(false);
+  const [job, setJob] = useState(null);
 
-  const { request, response, promptAsync, redirectUri } = useSpotifyAuth();
+  useEffect(() => {
+    getDefaultPlaylistUrl().then((url) => { if (url) setPlaylistUrl(url); });
+  }, []);
 
-  // Kick off Spotify OAuth when response arrives
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { code } = response.params;
-      exchangeSpotifyCode(code, request.codeVerifier, redirectUri)
-        .then(() => setStep('playlists'))
-        .catch((e) => Alert.alert('Spotify auth failed', e.message));
-    }
-  }, [response]);
+  const source = detectSource(playlistUrl);
 
-  async function handleMigrate(playlist) {
-    setQueuingActive(true);
-    setStep('jobs');
-    try {
-      const tracks = await getSpotifyPlaylistTracks(playlist.id);
-      const queued = await startMigration(playlist.name, tracks, setQueueProgress);
-      setJobs(queued);
-    } catch (e) {
-      Alert.alert('Migration failed', e.message);
-    } finally {
-      setQueuingActive(false);
+  function handleUrlChange(text) {
+    setPlaylistUrl(text);
+    if (!playlistName) {
+      setPlaylistName(defaultPlaylistName(text));
     }
   }
 
-  if (step === 'jobs') {
+  async function runMigrate() {
+    setLoading(true);
+    try {
+      const created = await startPlaylistMigration(playlistUrl.trim(), playlistName.trim());
+      setJob(created);
+    } catch (e) {
+      Alert.alert('Migration failed', e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMigrate() {
+    if (!playlistUrl.trim()) { Alert.alert('Enter a playlist URL'); return; }
+    if (!playlistName.trim()) { Alert.alert('Enter a playlist name'); return; }
+    if (!source) { Alert.alert('Unsupported URL', 'Paste a Spotify, YouTube, or Beatport playlist URL.'); return; }
+
+    if (source === 'Spotify') {
+      const [token, authMode, manualCredential] = await Promise.all([
+        getValidSpotifyToken(),
+        getSpotifyAuthMode(),
+        getSpotifyManualCredential(),
+      ]);
+      const hasCredential = authMode === 'manual' ? !!manualCredential?.trim() : !!token;
+      if (!hasCredential) {
+        Alert.alert(
+          'Spotify not connected',
+          authMode === 'manual'
+            ? 'No manual credential is set. Go to Settings → Spotify to paste a token or sp_dc cookie. Private playlists will fail without it.'
+            : 'Your Spotify session has expired or was never set up. Go to Settings → Spotify to reconnect. Private playlists will fail without it.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Continue anyway', onPress: runMigrate },
+          ]
+        );
+        return;
+      }
+    }
+    runMigrate();
+  }
+
+  if (job) {
     return (
       <MigrationJobsScreen
-        jobs={jobs}
-        queueProgress={queueProgress}
-        queuingActive={queuingActive}
-        onBack={() => setStep('source')}
+        job={job}
+        onBack={() => { setJob(null); setPlaylistUrl(''); setPlaylistName(''); }}
       />
     );
   }
 
-  if (step === 'playlists') {
-    return <SpotifyPlaylistPicker onSelect={handleMigrate} onBack={() => setStep('source')} />;
-  }
-
-  // Step: source selection
   return (
+    <>
     <View style={styles.container}>
       <Text style={styles.heading}>Migrate a Playlist</Text>
-      <Text style={styles.sub}>Choose a source to import from</Text>
+      <Text style={styles.sub}>Paste a playlist URL to download it to your NAS</Text>
 
-      <TouchableOpacity style={styles.sourceBtn} onPress={() => promptAsync()}>
-        <Text style={styles.sourceBtnText}>Spotify</Text>
-        <Text style={styles.sourceSub}>Import playlist metadata via OAuth</Text>
-      </TouchableOpacity>
-
-      <View style={[styles.sourceBtn, styles.sourceBtnDisabled]}>
-        <Text style={styles.sourceBtnText}>Beatport</Text>
-        <Text style={styles.sourceSub}>Coming in Phase 3</Text>
-      </View>
-    </View>
-  );
-}
-
-function SpotifyPlaylistPicker({ onSelect, onBack }) {
-  const { data: playlists, isLoading, error } = useQuery({
-    queryKey: ['spotify-playlists'],
-    queryFn: getSpotifyPlaylists,
-  });
-
-  if (isLoading) return <ActivityIndicator style={styles.center} />;
-  if (error) return <Text style={styles.error}>{error.message}</Text>;
-
-  return (
-    <View style={{ flex: 1, backgroundColor: '#111' }}>
-      <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={styles.heading}>Select Playlist</Text>
-      <FlatList
-        data={playlists}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.row} onPress={() => onSelect(item)}>
-            <Text style={styles.title}>{item.name}</Text>
-            <Text style={styles.sub}>{item.tracks?.total ?? ''} tracks</Text>
-          </TouchableOpacity>
-        )}
+      <Text style={styles.label}>Playlist URL</Text>
+      <Text style={styles.hint}>Spotify public playlists can work via backend app credentials; private playlists need user auth</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="https://open.spotify.com/playlist/… or YouTube / Beatport"
+        placeholderTextColor="#555"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        value={playlistUrl}
+        onChangeText={handleUrlChange}
       />
+      {source ? (
+        <Text style={styles.sourceBadge}>{source} detected</Text>
+      ) : playlistUrl.length > 0 ? (
+        <Text style={styles.sourceBadgeUnknown}>Unsupported URL</Text>
+      ) : null}
+
+      <Text style={[styles.label, { marginTop: 20 }]}>Playlist Name</Text>
+      <Text style={styles.hint}>Used as the folder name in AudioStation</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="My Playlist"
+        placeholderTextColor="#555"
+        value={playlistName}
+        onChangeText={setPlaylistName}
+      />
+
+      <TouchableOpacity
+        style={[styles.btn, (!source || loading) && styles.btnDisabled]}
+        onPress={handleMigrate}
+        disabled={!source || loading}
+      >
+        {loading
+          ? <ActivityIndicator color="#fff" />
+          : <Text style={styles.btnText}>Migrate</Text>
+        }
+      </TouchableOpacity>
     </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#111', padding: 24 },
-  center: { flex: 1 },
-  heading: { fontSize: 20, color: '#fff', fontWeight: '700', marginBottom: 8, paddingHorizontal: 24, paddingTop: 16 },
-  sub: { fontSize: 13, color: '#888', marginBottom: 24, paddingHorizontal: 24 },
-  sourceBtn: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 10,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+  heading: { fontSize: 20, color: '#fff', fontWeight: '700', marginBottom: 8 },
+  sub: { fontSize: 13, color: '#888', marginBottom: 24 },
+  label: { color: '#aaa', fontSize: 12, marginBottom: 4 },
+  hint: { color: '#555', fontSize: 11, marginBottom: 4 },
+  input: {
+    backgroundColor: '#222', color: '#fff', borderRadius: 8, padding: 12, fontSize: 14,
   },
-  sourceBtnDisabled: { opacity: 0.4 },
-  sourceBtnText: { fontSize: 16, color: '#fff', fontWeight: '600' },
-  sourceSub: { fontSize: 12, color: '#888', marginTop: 4 },
-  backBtn: { paddingHorizontal: 24, paddingTop: 16 },
-  backText: { color: '#1DB954', fontSize: 14 },
-  row: {
-    paddingVertical: 14, paddingHorizontal: 24,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#333',
+  sourceBadge: { fontSize: 11, color: '#1DB954', marginTop: 6 },
+  sourceBadgeUnknown: { fontSize: 11, color: '#e74c3c', marginTop: 6 },
+  btn: {
+    marginTop: 32, backgroundColor: '#1DB954', borderRadius: 8, padding: 14, alignItems: 'center',
   },
-  title: { fontSize: 16, color: '#fff' },
-  error: { color: 'red', padding: 24 },
+  btnDisabled: { opacity: 0.4 },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

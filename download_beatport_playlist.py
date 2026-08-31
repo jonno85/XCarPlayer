@@ -42,14 +42,24 @@ def main():
         else:
             sys.exit(1)
 
-    # 2. Get playlist URL
+    # 2. Cookies & playlist URL
+    cookies_file = None
+    use_cookies = input("\nUse a cookies file for Beatport subscription (y/n, default: n): ").strip().lower()
+    if use_cookies == 'y':
+        cookies_file = input("Enter path to cookies file (default: cookies.txt): ").strip()
+        if not cookies_file:
+            cookies_file = 'cookies.txt'
+        if not os.path.exists(cookies_file):
+            print(f"Warning: Cookies file '{cookies_file}' not found.")
+            cookies_file = None
+
     playlist_url = input("\nEnter Beatport playlist URL: ").strip()
     if not playlist_url:
         print("Error: No URL provided")
         sys.exit(1)
 
     # 3. Fetch tracks
-    songs = get_playlist_songs(playlist_url)
+    songs = get_playlist_songs(playlist_url, cookies_file=cookies_file)
     if not songs:
         sys.exit(1)
 

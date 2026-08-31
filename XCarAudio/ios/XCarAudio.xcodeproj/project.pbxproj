@@ -8,25 +8,29 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		16510DD3173C0A2B9C2DA03E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6EB41AEECB9B88013A342695 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		A59610C11F03CF142EC0F781 /* Pods_XCarAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABEA36D123F95B252887C032 /* Pods_XCarAudio.framework */; };
+		688F8E0E2F7FA643003EA71C /* Entitlements.plist in Resources */ = {isa = PBXBuildFile; fileRef = 688F8E0D2F7FA643003EA71C /* Entitlements.plist */; };
+		68C6ABAC2F8537C00045626B /* hapticpatternlibrary.plist in Resources */ = {isa = PBXBuildFile; fileRef = 68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */; };
+		9E3F4F335C312FC7B555F709 /* libPods-XCarAudio.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FBB37BA85F642BEC4ACA510 /* libPods-XCarAudio.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		CA41E23BFBFA62DEA4E1DCE8 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DC1E3C6AE66E1AF5AF5F74E /* ExpoModulesProvider.swift */; };
+		DE0AFE976DCF853C04E2EED2 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF7810B476B726396879357 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		F52E028738A5C1F2206FD291 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E49E55C9730AEF38BB52C707 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* XCarAudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XCarAudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = XCarAudio/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = XCarAudio/Info.plist; sourceTree = "<group>"; };
-		31DA1F901D709999305B8D2D /* Pods-XCarAudio.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.release.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.release.xcconfig"; sourceTree = "<group>"; };
-		6EB41AEECB9B88013A342695 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = XCarAudio/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		8DC1E3C6AE66E1AF5AF5F74E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-XCarAudio/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		3FBB37BA85F642BEC4ACA510 /* libPods-XCarAudio.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-XCarAudio.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		688F8E0D2F7FA643003EA71C /* Entitlements.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Entitlements.plist; sourceTree = "<group>"; };
+		68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = hapticpatternlibrary.plist; sourceTree = "<group>"; };
+		7FAC912A3C7CF555EF2E1E5B /* Pods-XCarAudio.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.debug.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = XCarAudio/SplashScreen.storyboard; sourceTree = "<group>"; };
-		ABEA36D123F95B252887C032 /* Pods_XCarAudio.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_XCarAudio.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5210301208B3E0005B6D7CD /* Pods-XCarAudio.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.release.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.release.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		D91FB4DF09D9655C37AA1D83 /* Pods-XCarAudio.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XCarAudio.debug.xcconfig"; path = "Target Support Files/Pods-XCarAudio/Pods-XCarAudio.debug.xcconfig"; sourceTree = "<group>"; };
+		BBF7810B476B726396879357 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-XCarAudio/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E49E55C9730AEF38BB52C707 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = XCarAudio/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = XCarAudio/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* XCarAudio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "XCarAudio-Bridging-Header.h"; path = "XCarAudio/XCarAudio-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -37,21 +41,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A59610C11F03CF142EC0F781 /* Pods_XCarAudio.framework in Frameworks */,
+				9E3F4F335C312FC7B555F709 /* libPods-XCarAudio.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		01FBBB58FCC86467EB85C95D /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				A29400B30F93C1CEEC0ECCEF /* XCarAudio */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* XCarAudio */ = {
 			isa = PBXGroup;
 			children = (
@@ -61,7 +57,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				6EB41AEECB9B88013A342695 /* PrivacyInfo.xcprivacy */,
+				E49E55C9730AEF38BB52C707 /* PrivacyInfo.xcprivacy */,
 			);
 			name = XCarAudio;
 			sourceTree = "<group>";
@@ -70,7 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				ABEA36D123F95B252887C032 /* Pods_XCarAudio.framework */,
+				3FBB37BA85F642BEC4ACA510 /* libPods-XCarAudio.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -85,12 +81,13 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				688F8E0D2F7FA643003EA71C /* Entitlements.plist */,
 				13B07FAE1A68108700A75B9A /* XCarAudio */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				D9815D39DF06C30BBF0D4B9E /* Pods */,
-				01FBBB58FCC86467EB85C95D /* ExpoModulesProviders */,
+				84B87DC93E7B7AF49FA5D0FA /* Pods */,
+				F7B12C4DA5C3AD4DC9FF47DE /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -105,30 +102,39 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A29400B30F93C1CEEC0ECCEF /* XCarAudio */ = {
+		84B87DC93E7B7AF49FA5D0FA /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				8DC1E3C6AE66E1AF5AF5F74E /* ExpoModulesProvider.swift */,
+				7FAC912A3C7CF555EF2E1E5B /* Pods-XCarAudio.debug.xcconfig */,
+				B5210301208B3E0005B6D7CD /* Pods-XCarAudio.release.xcconfig */,
 			);
-			name = XCarAudio;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
+				68C6ABAB2F8537C00045626B /* hapticpatternlibrary.plist */,
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
 			path = XCarAudio/Supporting;
 			sourceTree = "<group>";
 		};
-		D9815D39DF06C30BBF0D4B9E /* Pods */ = {
+		C7FAA95E73F539AFB27188E1 /* XCarAudio */ = {
 			isa = PBXGroup;
 			children = (
-				D91FB4DF09D9655C37AA1D83 /* Pods-XCarAudio.debug.xcconfig */,
-				31DA1F901D709999305B8D2D /* Pods-XCarAudio.release.xcconfig */,
+				BBF7810B476B726396879357 /* ExpoModulesProvider.swift */,
 			);
-			path = Pods;
+			name = XCarAudio;
+			sourceTree = "<group>";
+		};
+		F7B12C4DA5C3AD4DC9FF47DE /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				C7FAA95E73F539AFB27188E1 /* XCarAudio */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -139,13 +145,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "XCarAudio" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				90C6F54E433D6CB51C4DD08A /* [Expo] Configure project */,
+				E9FBBDB38C73587FC8B52ECA /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				0E4DA8B84C8B13A7E6279E9A /* [CP] Embed Pods Frameworks */,
+				BBA5B32EA201DB2CEDCE9B36 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -166,6 +172,7 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -194,8 +201,10 @@
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				68C6ABAC2F8537C00045626B /* hapticpatternlibrary.plist in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				16510DD3173C0A2B9C2DA03E /* PrivacyInfo.xcprivacy in Resources */,
+				688F8E0E2F7FA643003EA71C /* Entitlements.plist in Resources */,
+				F52E028738A5C1F2206FD291 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,7 +250,37 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		0E4DA8B84C8B13A7E6279E9A /* [CP] Embed Pods Frameworks */ = {
+		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-XCarAudio/Pods-XCarAudio-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ReactNativeAutoPlay/ReactNativeAutoPlay.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ReactNativeAutoPlay.bundle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-XCarAudio/Pods-XCarAudio-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		BBA5B32EA201DB2CEDCE9B36 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -263,35 +302,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-XCarAudio/Pods-XCarAudio-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-XCarAudio/Pods-XCarAudio-resources.sh",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-XCarAudio/Pods-XCarAudio-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		90C6F54E433D6CB51C4DD08A /* [Expo] Configure project */ = {
+		E9FBBDB38C73587FC8B52ECA /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -302,7 +313,7 @@
 			inputPaths = (
 				"$(SRCROOT)/.xcode.env",
 				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/XCarAudio/XCarAudio.entitlements",
+				"$(SRCROOT)/Entitlements.plist",
 				"$(SRCROOT)/Pods/Target Support Files/Pods-XCarAudio/expo-configure-project.sh",
 			);
 			name = "[Expo] Configure project";
@@ -323,7 +334,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				CA41E23BFBFA62DEA4E1DCE8 /* ExpoModulesProvider.swift in Sources */,
+				DE0AFE976DCF853C04E2EED2 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -332,11 +343,13 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D91FB4DF09D9655C37AA1D83 /* Pods-XCarAudio.debug.xcconfig */;
+			baseConfigurationReference = 7FAC912A3C7CF555EF2E1E5B /* Pods-XCarAudio.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = XCarAudio/XCarAudio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Entitlements.plist;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P54ZSF5AUR;
 				ENABLE_BITCODE = NO;
@@ -345,6 +358,8 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = XCarAudio/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = XCar;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -359,8 +374,10 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xcaraudio.pro;
 				PRODUCT_NAME = XCarAudio;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "XCarAudio/XCarAudio-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -372,14 +389,18 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 31DA1F901D709999305B8D2D /* Pods-XCarAudio.release.xcconfig */;
+			baseConfigurationReference = B5210301208B3E0005B6D7CD /* Pods-XCarAudio.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = XCarAudio/XCarAudio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Entitlements.plist;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P54ZSF5AUR;
 				INFOPLIST_FILE = XCarAudio/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = XCar;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -394,8 +415,10 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xcaraudio.pro;
 				PRODUCT_NAME = XCarAudio;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "XCarAudio/XCarAudio-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -451,19 +474,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"${PODS_ROOT}/ReactCommon",
-					"${PODS_ROOT}/ReactCommon/react/nativemodule/core",
-					"${PODS_ROOT}/React-runtimeexecutor",
-					"${PODS_ROOT}/React-runtimeexecutor/platform/ios",
-					"${PODS_ROOT}/ReactCommon-Samples",
-					"${PODS_ROOT}/ReactCommon-Samples/platform/ios",
-					"${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx",
-					"${PODS_ROOT}/React-NativeModulesApple",
-					"${PODS_ROOT}/React-graphics",
-					"${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios",
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
@@ -522,19 +532,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"${PODS_ROOT}/ReactCommon",
-					"${PODS_ROOT}/ReactCommon/react/nativemodule/core",
-					"${PODS_ROOT}/React-runtimeexecutor",
-					"${PODS_ROOT}/React-runtimeexecutor/platform/ios",
-					"${PODS_ROOT}/ReactCommon-Samples",
-					"${PODS_ROOT}/ReactCommon-Samples/platform/ios",
-					"${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx",
-					"${PODS_ROOT}/React-NativeModulesApple",
-					"${PODS_ROOT}/React-graphics",
-					"${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios",
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,

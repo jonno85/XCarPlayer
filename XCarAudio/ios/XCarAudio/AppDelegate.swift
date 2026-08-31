@@ -31,6 +31,39 @@ class AppDelegate: ExpoAppDelegate {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  @objc func getRootViewForAutoplay(
+    moduleName: String,
+    initialProperties: [String: Any]?
+  ) -> UIView? {
+    if RCTIsNewArchEnabled() {
+      if let factory = reactNativeFactory?.rootViewFactory as? ExpoReactRootViewFactory {
+        return factory.superView(
+          withModuleName: moduleName,
+          initialProperties: initialProperties,
+          launchOptions: nil,
+          devMenuConfiguration: nil
+        )
+      }
+
+      return reactNativeFactory?.rootViewFactory.view(
+        withModuleName: moduleName,
+        initialProperties: initialProperties,
+        launchOptions: nil,
+        devMenuConfiguration: nil
+      )
+    }
+
+    if let rootView = window?.rootViewController?.view as? RCTRootView {
+      return RCTRootView(
+        bridge: rootView.bridge,
+        moduleName: moduleName,
+        initialProperties: initialProperties
+      )
+    }
+
+    return nil
+  }
+
   // Linking API
   public override func application(
     _ app: UIApplication,

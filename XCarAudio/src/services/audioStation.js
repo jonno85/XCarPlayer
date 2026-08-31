@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 const SESSION_KEY = 'synology_session';
 const BASE_URL_KEY = 'synology_base_url';
 const DEVICE_ID_KEY = 'synology_device_id';
+const AUTH_CONTEXT_KEY = 'synology_auth_context';
 
 const AUTH_PATH = '/webapi/auth.cgi';
 const QUERY_PATH = '/webapi/query.cgi';
@@ -20,6 +21,9 @@ const AUTH_ERROR_CODES = new Set([105, 106, 119]);
 let sessionCache = null;
 let apiInfoCache = null;
 let authContext = null;
+const SECURE_STORE_OPTIONS = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+};
 
 function normalizeBaseUrl(value) {
   return value?.replace(/\/+$/, '') ?? null;
@@ -49,8 +53,8 @@ async function loadSession() {
 async function persistSession(session) {
   sessionCache = session;
   apiInfoCache = null;
-  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
-  await SecureStore.setItemAsync(BASE_URL_KEY, session.baseUrl);
+  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session), SECURE_STORE_OPTIONS);
+  await SecureStore.setItemAsync(BASE_URL_KEY, session.baseUrl, SECURE_STORE_OPTIONS);
 }
 
 async function clearSession() {
@@ -60,11 +64,42 @@ async function clearSession() {
   await SecureStore.deleteItemAsync(BASE_URL_KEY);
 }
 
+async function loadAuthContext() {
+  if (authContext?.quickConnectId && authContext?.username && authContext?.password) {
+    return authContext;
+  }
+
+  const stored = await SecureStore.getItemAsync(AUTH_CONTEXT_KEY);
+  if (!stored) return null;
+
+  try {
+    const parsed = JSON.parse(stored);
+    if (!parsed?.quickConnectId || !parsed?.username || !parsed?.password) {
+      return null;
+    }
+    authContext = parsed;
+    return authContext;
+  } catch {
+    await SecureStore.deleteItemAsync(AUTH_CONTEXT_KEY);
+    return null;
+  }
+}
+
+async function persistAuthContext(context) {
+  authContext = context;
+  await SecureStore.setItemAsync(AUTH_CONTEXT_KEY, JSON.stringify(context), SECURE_STORE_OPTIONS);
+}
+
+async function clearAuthContext() {
+  authContext = null;
+  await SecureStore.deleteItemAsync(AUTH_CONTEXT_KEY);
+}
+
 async function getDeviceId() {
   let deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
   if (!deviceId) {
     deviceId = `xcaraudio-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId, SECURE_STORE_OPTIONS);
   }
   return deviceId;
 }
@@ -136,11 +171,12 @@ async function resolveQuickConnect(quickConnectId) {
     const candidates = [];
     appendCandidate(candidates, smartdns.host, smartdns.port || service.smartdns_port || payload.port);
     appendCandidate(candidates, service.relay_dn, service.relay_port);
+    appendCandidate(candidates, service.relay_ip, service.relay_port);
     appendCandidate(candidates, server.ddns, smartdns.port || service.smartdns_port || payload.port);
     appendCandidate(candidates, env.control_host, env.control_port);
-    console.log('[audioStation] QuickConnect candidates', candidates);
-
+    appendCandidate(candidates, env.relay_host, env.relay_port);
     const uniqueCandidates = [...new Set(candidates.filter(Boolean))];
+    console.log('[audioStation] QuickConnect candidates', JSON.stringify(uniqueCandidates));
     for (const candidate of uniqueCandidates) {
       try {
         console.log('[audioStation] Testing QuickConnect trying candidate', candidate);
@@ -155,10 +191,10 @@ async function resolveQuickConnect(quickConnectId) {
             session: 'AudioStation',
             format: 'cookie',
           },
-          timeout: 20000,
+          timeout: 25000,
           validateStatus: () => true,
         });
-        console.log('[audioStation] QuickConnect response from candidate', candidate, response?.status, response?.data);
+        console.log('[audioStation] QuickConnect response from candidate', candidate, response?.status, JSON.stringify(response?.data));
 
         if ((response?.status ?? 0) < 500) {
           return candidate;
@@ -220,6 +256,7 @@ async function performLoginRequest({
   otpCode,
   token,
   deviceId,
+  enableDeviceToken,
 }) {
   const params = {
     api: 'SYNO.API.Auth',
@@ -235,6 +272,7 @@ async function performLoginRequest({
 
   if (otpCode) params.otp_code = otpCode;
   if (token) params.token = token;
+  if (enableDeviceToken) params.enable_device_token = 'yes';
 
   const response = await rawRequest({
     baseUrl,
@@ -289,11 +327,12 @@ async function hydrateApiInfo(baseUrl, sid, synotoken) {
 }
 
 async function refreshSession() {
-  if (!authContext?.quickConnectId || !authContext?.username || !authContext?.password) {
+  const context = await loadAuthContext();
+  if (!context?.quickConnectId || !context?.username || !context?.password) {
     throw new Error('Session expired. Please sign in again.');
   }
 
-  await login(authContext.quickConnectId, authContext.username, authContext.password);
+  await login(context.quickConnectId, context.username, context.password);
   return loadSession();
 }
 
@@ -442,12 +481,13 @@ export async function login(quickConnectId, username, password, options = {}) {
 
   const deviceId = await getDeviceId();
 
-  authContext = {
+  const nextAuthContext = {
     quickConnectId,
     username,
     password,
     baseUrl,
   };
+  await persistAuthContext(nextAuthContext);
 
   const loginData = await performLoginRequest({
     baseUrl,
@@ -456,6 +496,7 @@ export async function login(quickConnectId, username, password, options = {}) {
     otpCode: typeof options === 'string' ? options : options.otpCode,
     token: typeof options === 'object' ? options.token : undefined,
     deviceId,
+    enableDeviceToken: typeof options === 'object' ? !!options.trustDevice : false,
   });
 
   const session = {
@@ -494,7 +535,7 @@ export async function logout() {
     }
   }
 
-  authContext = null;
+  await clearAuthContext();
   await clearSession();
 }
 
@@ -551,6 +592,15 @@ export async function createPlaylist(name) {
   });
 
   return normalizePlaylist(data.playlist ?? { id: data.id, name });
+}
+
+export async function searchSongs(keyword) {
+  const data = await audioStationRequest({
+    apiName: 'SYNO.AudioStation.Song',
+    method: 'list',
+    params: { library: 'all', keyword, additional: 'song_tag', limit: 500, offset: 0 },
+  });
+  return (data.songs ?? []).map(normalizeSong);
 }
 
 export async function addSongs(playlistId, songIds) {

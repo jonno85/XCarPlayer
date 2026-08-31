@@ -1,41 +1,76 @@
-import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
-import { getPlaylists, getPlaylistTracks, getStreamUrl } from './audioStation';
-import { loadPlaylist, playTrackAt } from './player';
+import { HybridAutoPlay, ListTemplate } from '@iternio/react-native-auto-play';
+import { getPlaylists, getPlaylistTracks, getSession } from './audioStation';
+import CarplayNowPlaying from 'carplay-now-playing';
+import TrackPlayer from 'react-native-track-player';
 
-// CarPlay UI: root list of playlists → track list → NowPlaying
-// Apple restricts CarPlay templates strictly — no custom UI
 
-export function registerCarPlay() {
-  CarPlay.registerOnConnect(onConnect);
-  CarPlay.registerOnDisconnect(onDisconnect);
+// CarPlay UI for @iternio/react-native-auto-play
+// This service handles both CarPlay and Android Auto!
+
+export default function registerAutoPlay() {
+  console.log('[AutoPlay] Service registered');
+  HybridAutoPlay.addListener('didConnect', onConnect);
+  HybridAutoPlay.addListener('didDisconnect', onDisconnect);
+  
+  // If we are already connected (e.g. app refreshed during active session), trigger onConnect
+  if (HybridAutoPlay.isConnected && HybridAutoPlay.isConnected()) {
+    console.log('[AutoPlay] Already connected, triggering onConnect manually');
+    onConnect();
+  }
 }
 
 async function onConnect() {
-  const playlists = await getPlaylists();
-  const rootTemplate = buildPlaylistListTemplate(playlists);
-  CarPlay.setRootTemplate(rootTemplate);
+  console.log('[AutoPlay] onConnect triggered');
+  try {
+    const playlists = await getPlaylists();
+    console.log(`[AutoPlay] Fetched ${playlists.length} playlists`);
+    const rootTemplate = buildPlaylistListTemplate(playlists);
+    rootTemplate.setRootTemplate();
+  } catch (error) {
+    console.error('[AutoPlay] Error on connect:', error);
+    const detailText = getCarplayErrorText(error);
+    
+    // Show a helpful error template instead of a black screen
+    const errorTemplate = new ListTemplate({
+      title: { text: 'X Car Audio' },
+      sections: {
+        type: 'default',
+        items: [{
+          type: 'default',
+          title: { text: 'Not Connected' },
+          detailedText: { text: detailText }
+        }]
+      }
+    });
+    errorTemplate.setRootTemplate();
+  }
+}
+
+function getCarplayErrorText(error) {
+  const message = String(error?.message || '').toLowerCase();
+  if (message.includes('not connected') || message.includes('sign in')) {
+    return 'Open Settings on your phone and reconnect to Synology';
+  }
+  return 'Cannot reach your NAS right now. Check phone network/VPN and try again.';
 }
 
 function onDisconnect() {
-  // Nothing to tear down — CarPlay handles cleanup
+  console.log('[AutoPlay] Disconnected from car head unit');
 }
 
 function buildPlaylistListTemplate(playlists) {
   return new ListTemplate({
-    id: 'playlists',
-    title: 'X Car Audio',
-    sections: [
-      {
-        items: playlists.map((pl) => ({
-          id: pl.id,
-          text: pl.name,
-          detailText: `${pl.additional?.songs?.length ?? ''} tracks`,
-        })),
-      },
-    ],
-    onItemSelect: async ({ index }) => {
-      const playlist = playlists[index];
-      await openPlaylist(playlist);
+    title: { text: 'X Car Audio' },
+    sections: {
+      type: 'default',
+      items: playlists.map((pl) => ({
+        type: 'default',
+        title: { text: pl.name },
+        detailedText: { text: `${pl.additional?.songs?.length ?? 0} tracks` },
+        onPress: async () => {
+          await openPlaylist(pl);
+        },
+      })),
     },
   });
 }
@@ -43,32 +78,57 @@ function buildPlaylistListTemplate(playlists) {
 async function openPlaylist(playlist) {
   const tracks = await getPlaylistTracks(playlist.id);
   const trackListTemplate = new ListTemplate({
-    id: `playlist-${playlist.id}`,
-    title: playlist.name,
-    sections: [
-      {
-        items: tracks.map((t) => ({
-          id: t.id,
-          text: t.title,
-          detailText: t.additional?.song_tag?.artist || '',
-        })),
-      },
-    ],
-    onItemSelect: async ({ index }) => {
-      const playerTracks = await Promise.all(
-        tracks.map(async (t) => ({
-          id: t.id,
-          url: await getStreamUrl(t.id),
-          title: t.title,
-          artist: t.additional?.song_tag?.artist || '',
-          album: t.additional?.song_tag?.album || '',
-        }))
-      );
-      await loadPlaylist(playerTracks);
-      await playTrackAt(index);
-      CarPlay.pushTemplate(new NowPlayingTemplate({}));
+    title: { text: playlist.name },
+    sections: {
+      type: 'default',
+      items: tracks.map((t, index) => ({
+        type: 'default',
+        title: { text: t.title },
+        detailedText: { text: t.additional?.song_tag?.artist || '' },
+        onPress: async () => {
+          console.log(`[AutoPlay] Loading playlist with ${tracks.length} tracks...`);
+          const session = await getSession();
+          if (!session) {
+            console.error('[AutoPlay] No session found');
+            return;
+          }
+
+          const playerTracks = tracks.map((st) => ({
+            id: st.id,
+            url: `${session.baseUrl}/webapi/AudioStation/stream.cgi?api=SYNO.AudioStation.Stream&version=2&method=stream&id=${encodeURIComponent(st.id)}&_sid=${encodeURIComponent(session.sid)}`,
+            title: st.title,
+            artist: st.artist,
+            album: '', // Removed for cleaner UI layout
+            duration: st.duration || 0,
+            artwork: st.cover,
+            headers: session.synotoken ? { 'X-SYNO-TOKEN': session.synotoken } : undefined,
+          }));
+          try {
+             console.log(`[AutoPlay] Loading ${playerTracks.length} tracks...`);
+             await loadPlaylist(playerTracks);
+             
+             console.log(`[AutoPlay] Playing track at index ${index}...`);
+             await TrackPlayer.skip(index);
+             await TrackPlayer.play();
+          } catch (e) {
+            console.error('[AutoPlay] Playback Error:', e);
+          }
+          
+          setTimeout(async () => {
+             try {
+               console.log('[AutoPlay] Triggering pushNowPlaying...');
+               if (CarplayNowPlaying.pushNowPlaying) {
+                 const result = await CarplayNowPlaying.pushNowPlaying();
+                 console.log('[AutoPlay] Native Push Result:', result);
+               }
+             } catch (err) {
+               console.error('[AutoPlay] pushNowPlaying error:', err);
+             }
+          }, 400);
+        },
+      })),
     },
   });
 
-  CarPlay.pushTemplate(trackListTemplate);
+  trackListTemplate.push();
 }

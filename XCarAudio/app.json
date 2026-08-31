@@ -2,17 +2,24 @@
   "expo": {
     "name": "X Car Audio",
     "slug": "x-car-audio",
+    "icon": "./assets/icon.png",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "bundleIdentifier": "com.xcaraudio.pro",
       "supportsTablet": false,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
-      }
+      },
+      "appleTeamId": "P54ZSF5AUR"
     },
     "android": {
       "package": "com.xcaraudio.pro"

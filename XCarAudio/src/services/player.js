@@ -24,6 +24,22 @@ export async function setupPlayer() {
 
 export async function loadPlaylist(tracks) {
   await TrackPlayer.reset();
+  
+  // Re-enable options because reset() clears them!
+  await TrackPlayer.updateOptions({
+    capabilities: [
+      Capability.Play,
+      Capability.Pause,
+      Capability.SkipToNext,
+      Capability.SkipToPrevious,
+      Capability.Stop,
+      Capability.SeekTo,
+      Capability.JumpForward,
+      Capability.JumpBackward,
+    ],
+    compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
+  });
+
   await TrackPlayer.add(tracks);
   await TrackPlayer.play();
 }
