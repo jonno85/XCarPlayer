@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Music Library Downloader</title>
+    <style>
+      :root {
+        --ink: #17222e;
+        --muted: #617082;
+        --line: #dce5eb;
+        --canvas: #f6f8fb;
+        --card: #ffffff;
+        --violet: #6348e6;
+        --violet-dark: #4730be;
+        --teal: #12a89a;
+        --orange: #ff9c50;
+        --danger: #c5354e;
+        --shadow: 0 18px 50px rgba(33, 49, 74, 0.11);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 5% 0%, #e6defd 0, transparent 28rem),
+          radial-gradient(circle at 96% 8%, #cef5eb 0, transparent 23rem),
+          var(--canvas);
+        font: 16px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
+      .page { width: min(100% - 32px, 1020px); margin: 0 auto; padding: 42px 0 64px; }
+      header {
+        display: flex; justify-content: space-between; align-items: center; gap: 16px;
+        margin-bottom: 38px;
+      }
+      .header-actions { display: flex; align-items: center; gap: 8px; }
+      .language-select { width: auto; padding: 8px 30px 8px 10px; border-radius: 10px; }
+      .brand { display: flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; }
+      .brand-mark {
+        display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px;
+        color: white; background: linear-gradient(145deg, var(--violet), #9c6ff1); box-shadow: 0 7px 18px #7960cf66;
+      }
+      .quiet-button, .source-card, .secondary, .link-button {
+        border: 1px solid var(--line); color: var(--ink); background: var(--card); border-radius: 11px;
+      }
+      .quiet-button, .secondary { padding: 9px 13px; font-weight: 650; }
+      .quiet-button:hover, .secondary:hover { border-color: #afa1ef; background: #fbfaff; }
+      .hero { max-width: 730px; margin-bottom: 32px; }
+      .eyebrow { color: var(--violet); font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { margin: 8px 0 12px; font-size: clamp(2.15rem, 6vw, 3.75rem); line-height: 1.04; letter-spacing: -0.055em; }
+      .lede { max-width: 650px; margin: 0; color: var(--muted); font-size: 1.1rem; }
+      .download-layout { display: grid; grid-template-columns: 1fr 300px; align-items: start; gap: 22px; }
+      .panel { background: var(--card); border: 1px solid #e8edf1; border-radius: 20px; box-shadow: var(--shadow); }
+      .main-panel { padding: clamp(22px, 4vw, 36px); }
+      h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.035em; }
+      .step { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--violet); font-size: .8rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+      .step span { display: grid; place-items: center; width: 22px; height: 22px; color: white; background: var(--violet); border-radius: 50%; font-size: .75rem; letter-spacing: normal; }
+      .source-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 18px 0 26px; }
+      .source-card { position: relative; min-height: 85px; padding: 15px; text-align: left; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+      .source-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px #59657e18; border-color: #cfc5fa; }
+      .source-card.is-selected { border: 2px solid var(--violet); padding: 14px; background: #f9f7ff; }
+      .source-card strong { display: block; font-size: .95rem; }
+      .source-card small { display: block; margin-top: 3px; color: var(--muted); font-size: .78rem; }
+      .source-icon { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 6px; border-radius: 8px; font-size: .82rem; vertical-align: middle; }
+      .youtube { color: #ce3045; background: #ffebee; } .spotify { color: #168b62; background: #e3f8f1; }
+      .beatport { color: #9b671b; background: #fff0dc; } .text { color: #5263c9; background: #eaf0ff; }
+      .field { margin-top: 18px; }
+      label { display: block; margin-bottom: 7px; font-size: .9rem; font-weight: 750; }
+      .helper { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
+      input[type="text"], input[type="password"], select, textarea {
+        width: 100%; border: 1px solid #cbd7df; border-radius: 10px; padding: 12px 13px; color: var(--ink); background: #fff;
+        outline: none; transition: border-color .14s ease, box-shadow .14s ease;
+      }
+      input:focus, select:focus, textarea:focus { border-color: var(--violet); box-shadow: 0 0 0 4px #6348e61a; }
+      textarea { min-height: 128px; resize: vertical; }
+      .file-choice { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+      .file-choice input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      .file-label { display: inline-flex; padding: 8px 11px; border: 1px dashed #aab8c3; border-radius: 9px; color: #3c5268; font-size: .85rem; font-weight: 700; cursor: pointer; }
+      .file-label:hover { border-color: var(--violet); color: var(--violet); background: #fbfaff; }
+      .file-name { overflow: hidden; color: var(--muted); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+      .credential-box { margin-top: 14px; padding: 15px; border: 1px solid #e2dbfb; border-radius: 12px; background: #fbfaff; }
+      .credential-box summary { cursor: pointer; color: #4936a3; font-size: .88rem; font-weight: 750; }
+      .credential-box p { margin: 9px 0 0; color: var(--muted); font-size: .8rem; }
+      .credential-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+      .credential-grid .field { margin-top: 0; }
+      .folder-row { display: flex; gap: 8px; }
+      .folder-row input { min-width: 0; }
+      .folder-row input[readonly] { color: #425466; background: #f5f7f9; cursor: default; }
+      .advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .library-panel { margin-top: 22px; padding: 24px; }
+      .library-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; }
+      .history-list { display: grid; gap: 8px; }
+      .history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px; }
+      .history-item.is-missing { opacity: .58; }
+      .history-title { overflow: hidden; font-size: .88rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+      .history-meta { color: var(--muted); font-size: .75rem; }
+      .play-button { width: 36px; height: 36px; border: 0; border-radius: 50%; color: white; background: var(--violet); font-weight: 800; }
+      .library-summary { margin: 0 0 12px; color: var(--muted); font-size: .87rem; }
+      audio { width: 100%; height: 42px; margin: 12px 0; }
+      .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 24px; color: #445466; font-size: .85rem; }
+      .check input { width: 17px; height: 17px; accent-color: var(--violet); }
+      .primary {
+        width: 100%; margin-top: 18px; padding: 14px 18px; border: 0; border-radius: 11px; color: white; background: linear-gradient(110deg, var(--violet), #8059e7);
+        box-shadow: 0 9px 21px #6348e64d; font-weight: 800; transition: transform .16s ease, box-shadow .16s ease, opacity .16s;
+      }
+      .primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 26px #6348e661; }
+      button:disabled { cursor: not-allowed; opacity: .55; }
+      .side-panel { padding: 22px; }
+      .side-panel h2 { font-size: 1.1rem; }
+      .side-panel ol { margin: 18px 0 8px; padding: 0; list-style: none; counter-reset: steps; }
+      .side-panel li { position: relative; min-height: 48px; padding: 2px 0 15px 38px; color: var(--muted); font-size: .88rem; counter-increment: steps; }
+      .side-panel li::before { content: counter(steps); position: absolute; left: 0; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; color: var(--violet); background: #eeeaff; font-size: .75rem; font-weight: 800; }
+      .notice { margin-top: 20px; padding: 13px; border-radius: 10px; color: #5d5872; background: #f3f1f8; font-size: .78rem; }
+      .notice strong { color: #373044; }
+      .status-panel { display: none; margin-top: 22px; padding: 22px; }
+      .status-panel.is-visible { display: block; }
+      .status-heading { display: flex; justify-content: space-between; gap: 15px; align-items: flex-start; }
+      .badge { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 20px; color: #246552; background: #ddf5ec; font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+      .badge.is-running { color: #5541b4; background: #eeeaff; } .badge.is-failed { color: #9d273b; background: #fce7eb; }
+      .progress-track { height: 9px; overflow: hidden; margin: 16px 0 9px; border-radius: 10px; background: #ebeff3; }
+      .progress { width: 4%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--violet), var(--teal)); transition: width .4s ease; }
+      .progress.is-indeterminate { animation: indeterminate 1.25s ease-in-out infinite alternate; }
+      @keyframes indeterminate { from { width: 9%; margin-left: 0; } to { width: 45%; margin-left: 55%; } }
+      .status-copy { margin: 0; color: var(--muted); font-size: .9rem; }
+      .current-track { margin: 10px 0 0; overflow: hidden; color: #3e4d5c; font-size: .83rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      details.log { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 13px; }
+      details.log summary { cursor: pointer; color: var(--muted); font-size: .82rem; font-weight: 750; }
+      pre { max-height: 195px; overflow: auto; margin: 10px 0 0; padding: 11px; border-radius: 8px; color: #d9e3ec; background: #202b36; font: .75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
+      .message { display: none; margin: 0 0 18px; padding: 11px 13px; border-radius: 10px; color: #855a12; background: #fff5e5; font-size: .87rem; }
+      .message.is-visible { display: block; } .message.error { color: #982a3d; background: #fce9ec; } .message.success { color: #17664f; background: #e4f7f0; }
+      .update-dialog { display: none; position: fixed; z-index: 2; inset: 0; padding: 20px; background: #17222e77; }
+      .update-dialog.is-visible { display: grid; place-items: center; }
+      .update-card { width: min(100%, 460px); padding: 24px; border-radius: 18px; background: white; box-shadow: 0 25px 80px #18243266; }
+      .update-card h2 { margin-bottom: 8px; } .update-card p { color: var(--muted); }
+      .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+      .hidden { display: none !important; }
+      @media (max-width: 790px) { .download-layout { grid-template-columns: 1fr; } .side-panel { display: none; } }
+      @media (max-width: 520px) {
+        .page { width: min(100% - 22px, 1020px); padding-top: 22px; } header { margin-bottom: 28px; }
+        .source-grid, .credential-grid, .advanced-grid { grid-template-columns: 1fr; } .folder-row { flex-direction: column; } .folder-row .secondary { width: 100%; }
+        .main-panel { padding: 22px; } .brand { font-size: .93rem; } .quiet-button { padding: 8px 10px; font-size: .8rem; }
+      }
+    </style>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <div class="brand"><span class="brand-mark">♫</span> Music Library Downloader</div>
+        <div class="header-actions">
+          <select class="language-select" id="language-select" aria-label="Language"><option value="en">EN</option><option value="it">IT</option></select>
+          <button class="quiet-button" id="updates-button" type="button" data-i18n="updates">Check for updates</button>
+          <button class="quiet-button" id="quit-button" type="button" data-i18n="quit">Quit</button>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="eyebrow" data-i18n="eyebrow">Your music, neatly collected</div>
+        <h1 data-i18n="hero">From link to library, without the fuss.</h1>
+        <p class="lede" data-i18n="lede">Paste a music link or load a song list. The app creates consistent audio files in the music folder you choose.</p>
+      </section>
+
+      <div class="download-layout">
+        <section class="panel main-panel">
+          <p class="message" id="message" role="alert"></p>
+          <div class="step"><span>1</span> <b data-i18n="pickSource">Pick your source</b></div>
+          <h2 data-i18n="whatAdd">What would you like to add?</h2>
+          <div class="source-grid" id="source-grid">
+            <button class="source-card is-selected" type="button" data-source="youtube">
+              <strong><span class="source-icon youtube">▶</span>YouTube</strong><small data-i18n="youtubeHelp">A song or a playlist link</small>
+            </button>
+            <button class="source-card" type="button" data-source="spotify">
+              <strong><span class="source-icon spotify">●</span>Spotify</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
+            </button>
+            <button class="source-card" type="button" data-source="beatport">
+              <strong><span class="source-icon beatport">◆</span>Beatport</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
+            </button>
+            <button class="source-card" type="button" data-source="text">
+              <strong><span class="source-icon text">☰</span><span data-i18n="songList">Song list</span></strong><small data-i18n="textHelp">A .txt file, one song per line</small>
+            </button>
+          </div>
+
+          <form id="download-form">
+            <div id="url-section">
+              <div class="step"><span>2</span> <b data-i18n="pasteLink">Paste the link</b></div>
+              <div class="field">
+                <label for="source-url" id="url-label">YouTube link</label>
+                <input id="source-url" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" />
+                <p class="helper" id="url-helper">Choose “Playlist” below if the link contains more than one song.</p>
+              </div>
+              <div class="field" id="download-type-section">
+                <label for="download-type" data-i18n="linkContains">This link contains</label>
+                <select id="download-type"><option value="single" data-i18n="singleItem">One song or video</option><option value="playlist" data-i18n="playlist">A playlist</option></select>
+              </div>
+              <details class="credential-box" id="youtube-sign-in">
+                <summary data-i18n="youtubeSignIn">Only if YouTube asks you to sign in</summary>
+                <p data-i18n="youtubeSignInHelp">Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
+                <div class="field">
+                  <label for="youtube-browser" data-i18n="signedBrowser">Signed-in browser</label>
+                  <select id="youtube-browser">
+                    <option value="">None — try without signing in</option>
+                    <option value="chrome">Google Chrome</option>
+                    <option value="edge">Microsoft Edge</option>
+                    <option value="firefox">Mozilla Firefox</option>
+                    <option value="safari">Safari</option>
+                    <option value="brave">Brave</option>
+                    <option value="chromium">Chromium</option>
+                  </select>
+                </div>
+              </details>
+              <details class="credential-box hidden" id="spotify-credentials">
+                <summary data-i18n="spotifyKey">Spotify needs a one-time app key — add it here</summary>
+                <p><span data-i18n="spotifyHelp">Spotify links provide track names only. This app looks for matching audio on YouTube. Create a free key at</span> <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify for Developers</a>. <span data-i18n="spotifyPrivacy">Your key is used for this download only and is not saved.</span></p>
+                <div class="credential-grid">
+                  <div class="field"><label for="spotify-client-id">Client ID</label><input id="spotify-client-id" type="text" autocomplete="off" /></div>
+                  <div class="field"><label for="spotify-client-secret">Client Secret</label><input id="spotify-client-secret" type="password" autocomplete="off" /></div>
+                </div>
+              </details>
+            </div>
+
+            <div id="text-section" class="hidden">
+              <div class="step"><span>2</span> <b data-i18n="addList">Add your song list</b></div>
+              <div class="field">
+                <label data-i18n="textOrPaste">Text file or pasted songs</label>
+                <div class="file-choice">
+                  <label class="file-label" for="song-file" data-i18n="chooseText">Choose .txt file</label>
+                  <input id="song-file" type="file" accept=".txt,text/plain" />
+                  <span class="file-name" id="file-name" data-i18n="noFile">No file chosen</span>
+                </div>
+                <textarea id="song-list" spellcheck="false" placeholder="Artist - Song title&#10;Another artist - Another song&#10;&#10;One song per line. Lines beginning with # are ignored."></textarea>
+                <p class="helper" data-i18n="textSearchHelp">The app searches YouTube for each song and writes it in your selected format.</p>
+              </div>
+            </div>
+
+            <div class="step" style="margin-top: 29px;"><span>3</span> <b data-i18n="saveLibrary">Save to your library</b></div>
+            <div class="field">
+              <label for="output-directory" data-i18n="musicFolder">Music folder</label>
+              <div class="folder-row">
+                <input id="output-directory" type="text" autocomplete="off" readonly />
+                <button class="secondary" id="pick-folder" type="button" data-i18n="chooseFolder">Choose folder…</button>
+                <button class="secondary" id="save-folder" type="button" data-i18n="saveDefault">Save as default</button>
+              </div>
+              <p class="helper" data-i18n="folderHelp">Use the folder picker; your default is stored only on this computer.</p>
+            </div>
+
+            <details class="credential-box" id="audio-options">
+              <summary data-i18n="audioOptions">Audio format & Rekordbox options</summary>
+              <div class="advanced-grid">
+                <div class="field">
+                  <label for="audio-format" data-i18n="audioFormat">Audio format</label>
+                  <select id="audio-format">
+                    <option value="mp3">MP3 · 320 kbps / compatible</option>
+                    <option value="m4a">M4A · AAC audio</option>
+                    <option value="flac">FLAC · lossless container</option>
+                    <option value="wav">WAV · lossless container</option>
+                    <option value="opus">Opus · efficient</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="playlist-name" data-i18n="playlistName">Playlist name</label>
+                  <input id="playlist-name" type="text" placeholder="My new playlist" />
+                </div>
+              </div>
+              <p class="helper" data-i18n="losslessWarning">FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.</p>
+              <label class="check" style="margin-top:12px;"><input id="rekordbox-playlist" type="checkbox" /><span data-i18n="rekordboxPlaylist">Create a Rekordbox-compatible .m3u8 playlist</span></label>
+            </details>
+
+            <label class="check"><input id="rights-confirmed" type="checkbox" /><span data-i18n="rights">I have the rights or permission to download these tracks and will follow the source service’s terms.</span></label>
+            <button class="primary" id="download-button" type="submit" data-i18n="download">Download to my library</button>
+          </form>
+        </section>
+
+        <aside class="panel side-panel">
+          <h2 data-i18n="simpleDesign">Simple by design</h2>
+          <ol>
+            <li data-i18n="simpleOne">Pick where your song names come from.</li>
+            <li data-i18n="simpleTwo">Paste a link, or choose a plain text list.</li>
+            <li data-i18n="simpleThree">Watch the progress while files land in your music folder.</li>
+          </ol>
+          <div class="notice"><strong data-i18n="aboutSources">About sources</strong><br /><span data-i18n="aboutSourcesHelp">Spotify and Beatport are used for public song metadata; matching audio is searched on YouTube for a consistent local library.</span></div>
+        </aside>
+      </div>
+
+      <section class="panel status-panel" id="status-panel" aria-live="polite">
+        <div class="status-heading"><div><div class="step"><span>♫</span> <b data-i18n="downloadStatus">Download status</b></div><h2 id="status-title" data-i18n="preparingTitle">Getting things ready</h2></div><span class="badge is-running" id="status-badge" data-i18n="preparing">Preparing</span></div>
+        <div class="progress-track"><div class="progress is-indeterminate" id="progress"></div></div>
+        <p class="status-copy" id="status-copy" data-i18n="preparingHelp">Your download is being prepared.</p>
+        <p class="current-track" id="current-track"></p>
+        <details class="log"><summary data-i18n="showDetails">Show download details</summary><pre id="download-log"></pre></details>
+      </section>
+
+      <section class="panel library-panel" id="library-panel">
+        <div class="library-heading">
+          <div><div class="step"><span>♪</span> <b data-i18n="libraryHistory">Library & history</b></div><h2 data-i18n="previousDownloads">Previous downloads</h2></div>
+          <button class="secondary" id="scan-library" type="button" data-i18n="compareFolder">Compare folder</button>
+        </div>
+        <p class="library-summary" id="library-summary" data-i18n="historyHelp">Downloaded and already-existing tracks are highlighted here. Folder comparison never moves or deletes files.</p>
+        <audio id="audio-player" controls preload="metadata"></audio>
+        <div class="history-list" id="history-list"></div>
+      </section>
+    </main>
+
+    <div class="update-dialog" id="update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title">
+      <section class="update-card">
+        <h2 id="update-title" data-i18n="checkingUpdates">Checking for updates…</h2>
+        <p id="update-message" data-i18n="checkingGithub">Looking at the GitHub source.</p>
+        <a class="helper hidden" id="release-link" href="#" target="_blank" rel="noreferrer" data-i18n="openReleases">Open GitHub Releases</a>
+        <div class="dialog-actions"><button class="secondary" id="close-update" type="button" data-i18n="close">Close</button><button class="primary hidden" id="install-update" type="button" style="width:auto;margin-top:0;" data-i18n="installUpdate">Install update</button></div>
+      </section>
+    </div>
+  </body>
+</html>

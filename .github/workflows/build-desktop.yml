@@ -28,14 +28,14 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install packaging dependencies
-        run: python -m pip install --upgrade pyinstaller -r requirements.txt
+        run: python -m pip install --upgrade pyinstaller -r desktop-downloader/requirements.txt
       - name: Build self-contained application
-        run: python scripts/build_bundle.py
+        run: python desktop-downloader/scripts/build_bundle.py
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: music-library-downloader-${{ matrix.os }}
-          path: dist/MusicLibraryDownloader-*.zip
+          path: desktop-downloader/dist/MusicLibraryDownloader-*.zip
           if-no-files-found: error
       - name: Attach bundle to release
         if: github.event_name == 'release'
@@ -43,4 +43,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         shell: bash
-        run: gh release upload "$RELEASE_TAG" dist/MusicLibraryDownloader-*.zip --clobber
+        run: gh release upload "$RELEASE_TAG" desktop-downloader/dist/MusicLibraryDownloader-*.zip --clobber
