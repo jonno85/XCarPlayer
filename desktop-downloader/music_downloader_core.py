@@ -22,7 +22,7 @@ from urllib.request import Request, urlopen
 
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}

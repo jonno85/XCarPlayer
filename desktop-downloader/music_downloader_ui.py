@@ -34,7 +34,21 @@ from music_downloader_core import (
 
 SOURCE_ROOT = Path(__file__).resolve().parent
 IS_FROZEN = bool(getattr(sys, "frozen", False))
-PROJECT_ROOT = Path(sys.executable).resolve().parent if IS_FROZEN else SOURCE_ROOT
+
+
+def repository_root(start: Path) -> Path:
+    """Find the checkout root so Git updates work from this subproject."""
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return start
+
+
+PROJECT_ROOT = (
+    Path(sys.executable).resolve().parent
+    if IS_FROZEN
+    else repository_root(SOURCE_ROOT)
+)
 WEB_ROOT = Path(getattr(sys, "_MEIPASS", SOURCE_ROOT)) / "web"
 MAX_REQUEST_BYTES = 1_500_000
 
