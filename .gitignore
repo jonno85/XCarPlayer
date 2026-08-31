@@ -2,8 +2,12 @@
 songs.txt
 
 env/
+.music-library-venv/
+.music-library-bootstrap/
 __pycache__/
 downloads/
+build/
+dist/
 temp_spotify_songs.txt
 french_indie/
 angy/

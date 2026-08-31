@@ -1,0 +1,46 @@
+name: Build desktop bundles
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux bundle
+          - os: macos-latest
+            label: macOS bundle
+          - os: windows-latest
+            label: Windows bundle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install packaging dependencies
+        run: python -m pip install --upgrade pyinstaller -r requirements.txt
+      - name: Build self-contained application
+        run: python scripts/build_bundle.py
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-library-downloader-${{ matrix.os }}
+          path: dist/MusicLibraryDownloader-*.zip
+          if-no-files-found: error
+      - name: Attach bundle to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: gh release upload "$RELEASE_TAG" dist/MusicLibraryDownloader-*.zip --clobber
