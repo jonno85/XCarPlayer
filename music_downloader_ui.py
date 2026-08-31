@@ -8,6 +8,10 @@ downloader, its configuration, or Spotify credentials to the local network.
 from __future__ import annotations
 
 import json
+import mimetypes
+import os
+import shutil
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -22,6 +26,7 @@ from music_downloader_core import (
     ConfigStore,
     DownloadManager,
     InputError,
+    LibraryHistory,
     get_update_status,
     install_update,
 )
@@ -35,7 +40,9 @@ MAX_REQUEST_BYTES = 1_500_000
 
 
 def request_handler(
-    config_store: ConfigStore, download_manager: DownloadManager
+    config_store: ConfigStore,
+    download_manager: DownloadManager,
+    history: LibraryHistory,
 ) -> Type[BaseHTTPRequestHandler]:
     """Create a request handler with this process's state attached."""
 
@@ -56,6 +63,14 @@ def request_handler(
                     self._send_json({"job": download_manager.snapshot(job_id)})
                 except InputError as error:
                     self._send_json({"error": str(error)}, HTTPStatus.NOT_FOUND)
+            elif request.path == "/api/history":
+                self._send_json({"entries": history.entries()})
+            elif request.path == "/api/media":
+                media_id = parse_qs(request.query).get("id", [""])[0]
+                try:
+                    self._serve_media(history.resolve_media(media_id))
+                except InputError as error:
+                    self._send_json({"error": str(error)}, HTTPStatus.NOT_FOUND)
             elif request.path == "/api/update-status":
                 self._send_json(
                     get_update_status(PROJECT_ROOT, config_store.load()["github_repository"])
@@ -70,6 +85,14 @@ def request_handler(
                     self._send_json({"settings": config_store.save(payload)})
                 elif self.path == "/api/download":
                     self._send_json({"job": download_manager.create(payload)}, HTTPStatus.ACCEPTED)
+                elif self.path == "/api/pick-folder":
+                    selected = choose_destination_folder(
+                        str(payload.get("current", config_store.load()["download_dir"]))
+                    )
+                    self._send_json({"path": selected})
+                elif self.path == "/api/scan-library":
+                    directory = Path(str(payload.get("directory", "")))
+                    self._send_json({"library": history.scan(directory)})
                 elif self.path == "/api/install-update":
                     self._send_json(
                         install_update(PROJECT_ROOT, config_store.load()["github_repository"])
@@ -106,9 +129,45 @@ def request_handler(
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(page)))
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self'",
+            )
             self.end_headers()
             self.wfile.write(page)
+
+        def _serve_media(self, path: Path) -> None:
+            file_size = path.stat().st_size
+            start, end = 0, file_size - 1
+            range_header = self.headers.get("Range", "")
+            if range_header.startswith("bytes="):
+                try:
+                    start_text, end_text = range_header[6:].split("-", 1)
+                    start = int(start_text) if start_text else 0
+                    end = int(end_text) if end_text else file_size - 1
+                    end = min(end, file_size - 1)
+                except (ValueError, IndexError):
+                    self.send_error(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                    return
+            length = max(0, end - start + 1)
+            self.send_response(
+                HTTPStatus.PARTIAL_CONTENT if range_header else HTTPStatus.OK
+            )
+            self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "audio/mpeg")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(length))
+            if range_header:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            self.end_headers()
+            with path.open("rb") as media_file:
+                media_file.seek(start)
+                remaining = length
+                while remaining:
+                    chunk = media_file.read(min(64 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
 
         def _send_json(self, body: Dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
             encoded = json.dumps(body).encode("utf-8")
@@ -125,12 +184,54 @@ def request_handler(
     return MusicLibraryRequestHandler
 
 
+def choose_destination_folder(current: str = "") -> str:
+    """Open the operating system's native folder chooser."""
+    initial = str(Path(current).expanduser())
+    try:
+        if os.name == "nt":
+            script = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$d=New-Object System.Windows.Forms.FolderBrowserDialog; "
+                f"$d.SelectedPath='{initial.replace(chr(39), chr(39) * 2)}'; "
+                "if($d.ShowDialog() -eq 'OK'){$d.SelectedPath}"
+            )
+            return subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command", script],
+                text=True,
+                timeout=120,
+            ).strip()
+        if sys.platform == "darwin":
+            script = 'POSIX path of (choose folder with prompt "Choose your music library")'
+            return subprocess.check_output(
+                ["osascript", "-e", script], text=True, timeout=120
+            ).strip()
+        if shutil.which("zenity"):
+            return subprocess.check_output(
+                ["zenity", "--file-selection", "--directory", f"--filename={initial}/"],
+                text=True,
+                timeout=120,
+            ).strip()
+        if shutil.which("kdialog"):
+            return subprocess.check_output(
+                ["kdialog", "--getexistingdirectory", initial],
+                text=True,
+                timeout=120,
+            ).strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return ""
+    raise InputError(
+        "No native folder picker is available on this Linux desktop. "
+        "Install zenity or kdialog, then restart the app."
+    )
+
+
 def main() -> int:
     config_store = ConfigStore()
-    download_manager = DownloadManager()
+    history = LibraryHistory()
+    download_manager = DownloadManager(history)
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        request_handler(config_store, download_manager),
+        request_handler(config_store, download_manager, history),
     )
     server.daemon_threads = True
     address = f"http://127.0.0.1:{server.server_port}"

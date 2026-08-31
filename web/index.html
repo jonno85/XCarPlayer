@@ -37,6 +37,7 @@
         margin-bottom: 38px;
       }
       .header-actions { display: flex; align-items: center; gap: 8px; }
+      .language-select { width: auto; padding: 8px 30px 8px 10px; border-radius: 10px; }
       .brand { display: flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; }
       .brand-mark {
         display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px;
@@ -87,6 +88,18 @@
       .credential-grid .field { margin-top: 0; }
       .folder-row { display: flex; gap: 8px; }
       .folder-row input { min-width: 0; }
+      .folder-row input[readonly] { color: #425466; background: #f5f7f9; cursor: default; }
+      .advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .library-panel { margin-top: 22px; padding: 24px; }
+      .library-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; }
+      .history-list { display: grid; gap: 8px; }
+      .history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px; }
+      .history-item.is-missing { opacity: .58; }
+      .history-title { overflow: hidden; font-size: .88rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+      .history-meta { color: var(--muted); font-size: .75rem; }
+      .play-button { width: 36px; height: 36px; border: 0; border-radius: 50%; color: white; background: var(--violet); font-weight: 800; }
+      .library-summary { margin: 0 0 12px; color: var(--muted); font-size: .87rem; }
+      audio { width: 100%; height: 42px; margin: 12px 0; }
       .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 24px; color: #445466; font-size: .85rem; }
       .check input { width: 17px; height: 17px; accent-color: var(--violet); }
       .primary {
@@ -127,7 +140,7 @@
       @media (max-width: 790px) { .download-layout { grid-template-columns: 1fr; } .side-panel { display: none; } }
       @media (max-width: 520px) {
         .page { width: min(100% - 22px, 1020px); padding-top: 22px; } header { margin-bottom: 28px; }
-        .source-grid, .credential-grid { grid-template-columns: 1fr; } .folder-row { flex-direction: column; } .folder-row .secondary { width: 100%; }
+        .source-grid, .credential-grid, .advanced-grid { grid-template-columns: 1fr; } .folder-row { flex-direction: column; } .folder-row .secondary { width: 100%; }
         .main-panel { padding: 22px; } .brand { font-size: .93rem; } .quiet-button { padding: 8px 10px; font-size: .8rem; }
       }
     </style>
@@ -138,54 +151,55 @@
       <header>
         <div class="brand"><span class="brand-mark">♫</span> Music Library Downloader</div>
         <div class="header-actions">
-          <button class="quiet-button" id="updates-button" type="button">Check for updates</button>
-          <button class="quiet-button" id="quit-button" type="button">Quit</button>
+          <select class="language-select" id="language-select" aria-label="Language"><option value="en">EN</option><option value="it">IT</option></select>
+          <button class="quiet-button" id="updates-button" type="button" data-i18n="updates">Check for updates</button>
+          <button class="quiet-button" id="quit-button" type="button" data-i18n="quit">Quit</button>
         </div>
       </header>
 
       <section class="hero">
-        <div class="eyebrow">Your music, neatly collected</div>
-        <h1>From link to library,<br />without the fuss.</h1>
-        <p class="lede">Paste a music link or load a song list. The app creates consistent MP3 files in the music folder you choose.</p>
+        <div class="eyebrow" data-i18n="eyebrow">Your music, neatly collected</div>
+        <h1 data-i18n="hero">From link to library, without the fuss.</h1>
+        <p class="lede" data-i18n="lede">Paste a music link or load a song list. The app creates consistent audio files in the music folder you choose.</p>
       </section>
 
       <div class="download-layout">
         <section class="panel main-panel">
           <p class="message" id="message" role="alert"></p>
-          <div class="step"><span>1</span> Pick your source</div>
-          <h2>What would you like to add?</h2>
+          <div class="step"><span>1</span> <b data-i18n="pickSource">Pick your source</b></div>
+          <h2 data-i18n="whatAdd">What would you like to add?</h2>
           <div class="source-grid" id="source-grid">
             <button class="source-card is-selected" type="button" data-source="youtube">
-              <strong><span class="source-icon youtube">▶</span>YouTube</strong><small>A song or a playlist link</small>
+              <strong><span class="source-icon youtube">▶</span>YouTube</strong><small data-i18n="youtubeHelp">A song or a playlist link</small>
             </button>
             <button class="source-card" type="button" data-source="spotify">
-              <strong><span class="source-icon spotify">●</span>Spotify</strong><small>Public track or playlist metadata</small>
+              <strong><span class="source-icon spotify">●</span>Spotify</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
             </button>
             <button class="source-card" type="button" data-source="beatport">
-              <strong><span class="source-icon beatport">◆</span>Beatport</strong><small>Public track or playlist metadata</small>
+              <strong><span class="source-icon beatport">◆</span>Beatport</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
             </button>
             <button class="source-card" type="button" data-source="text">
-              <strong><span class="source-icon text">☰</span>Song list</strong><small>A .txt file, one song per line</small>
+              <strong><span class="source-icon text">☰</span><span data-i18n="songList">Song list</span></strong><small data-i18n="textHelp">A .txt file, one song per line</small>
             </button>
           </div>
 
           <form id="download-form">
             <div id="url-section">
-              <div class="step"><span>2</span> Paste the link</div>
+              <div class="step"><span>2</span> <b data-i18n="pasteLink">Paste the link</b></div>
               <div class="field">
                 <label for="source-url" id="url-label">YouTube link</label>
                 <input id="source-url" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" />
                 <p class="helper" id="url-helper">Choose “Playlist” below if the link contains more than one song.</p>
               </div>
               <div class="field" id="download-type-section">
-                <label for="download-type">This link contains</label>
-                <select id="download-type"><option value="single">One song or video</option><option value="playlist">A playlist</option></select>
+                <label for="download-type" data-i18n="linkContains">This link contains</label>
+                <select id="download-type"><option value="single" data-i18n="singleItem">One song or video</option><option value="playlist" data-i18n="playlist">A playlist</option></select>
               </div>
               <details class="credential-box" id="youtube-sign-in">
-                <summary>Only if YouTube asks you to sign in</summary>
-                <p>Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
+                <summary data-i18n="youtubeSignIn">Only if YouTube asks you to sign in</summary>
+                <p data-i18n="youtubeSignInHelp">Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
                 <div class="field">
-                  <label for="youtube-browser">Signed-in browser</label>
+                  <label for="youtube-browser" data-i18n="signedBrowser">Signed-in browser</label>
                   <select id="youtube-browser">
                     <option value="">None — try without signing in</option>
                     <option value="chrome">Google Chrome</option>
@@ -198,8 +212,8 @@
                 </div>
               </details>
               <details class="credential-box hidden" id="spotify-credentials">
-                <summary>Spotify needs a one-time app key — add it here</summary>
-                <p>Spotify links provide track names only. This app looks for the matching audio on YouTube. Create a free key at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify for Developers</a>. Your key is used for this download only and is not saved.</p>
+                <summary data-i18n="spotifyKey">Spotify needs a one-time app key — add it here</summary>
+                <p><span data-i18n="spotifyHelp">Spotify links provide track names only. This app looks for matching audio on YouTube. Create a free key at</span> <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify for Developers</a>. <span data-i18n="spotifyPrivacy">Your key is used for this download only and is not saved.</span></p>
                 <div class="credential-grid">
                   <div class="field"><label for="spotify-client-id">Client ID</label><input id="spotify-client-id" type="text" autocomplete="off" /></div>
                   <div class="field"><label for="spotify-client-secret">Client Secret</label><input id="spotify-client-secret" type="password" autocomplete="off" /></div>
@@ -208,60 +222,93 @@
             </div>
 
             <div id="text-section" class="hidden">
-              <div class="step"><span>2</span> Add your song list</div>
+              <div class="step"><span>2</span> <b data-i18n="addList">Add your song list</b></div>
               <div class="field">
-                <label>Text file or pasted songs</label>
+                <label data-i18n="textOrPaste">Text file or pasted songs</label>
                 <div class="file-choice">
-                  <label class="file-label" for="song-file">Choose .txt file</label>
+                  <label class="file-label" for="song-file" data-i18n="chooseText">Choose .txt file</label>
                   <input id="song-file" type="file" accept=".txt,text/plain" />
-                  <span class="file-name" id="file-name">No file chosen</span>
+                  <span class="file-name" id="file-name" data-i18n="noFile">No file chosen</span>
                 </div>
                 <textarea id="song-list" spellcheck="false" placeholder="Artist - Song title&#10;Another artist - Another song&#10;&#10;One song per line. Lines beginning with # are ignored."></textarea>
-                <p class="helper">The app searches YouTube for each song and writes normalized MP3 files.</p>
+                <p class="helper" data-i18n="textSearchHelp">The app searches YouTube for each song and writes it in your selected format.</p>
               </div>
             </div>
 
-            <div class="step" style="margin-top: 29px;"><span>3</span> Save to your library</div>
+            <div class="step" style="margin-top: 29px;"><span>3</span> <b data-i18n="saveLibrary">Save to your library</b></div>
             <div class="field">
-              <label for="output-directory">Music folder</label>
+              <label for="output-directory" data-i18n="musicFolder">Music folder</label>
               <div class="folder-row">
-                <input id="output-directory" type="text" autocomplete="off" />
-                <button class="secondary" id="save-folder" type="button">Save as default</button>
+                <input id="output-directory" type="text" autocomplete="off" readonly />
+                <button class="secondary" id="pick-folder" type="button" data-i18n="chooseFolder">Choose folder…</button>
+                <button class="secondary" id="save-folder" type="button" data-i18n="saveDefault">Save as default</button>
               </div>
-              <p class="helper">New folders are created automatically. Your default is stored only on this computer.</p>
+              <p class="helper" data-i18n="folderHelp">Use the folder picker; your default is stored only on this computer.</p>
             </div>
 
-            <label class="check"><input id="rights-confirmed" type="checkbox" /><span>I have the rights or permission to download these tracks and will follow the source service’s terms.</span></label>
-            <button class="primary" id="download-button" type="submit">Download to my library</button>
+            <details class="credential-box" id="audio-options">
+              <summary data-i18n="audioOptions">Audio format & Rekordbox options</summary>
+              <div class="advanced-grid">
+                <div class="field">
+                  <label for="audio-format" data-i18n="audioFormat">Audio format</label>
+                  <select id="audio-format">
+                    <option value="mp3">MP3 · 320 kbps / compatible</option>
+                    <option value="m4a">M4A · AAC / MP4 audio</option>
+                    <option value="flac">FLAC · lossless container</option>
+                    <option value="wav">WAV · lossless container</option>
+                    <option value="opus">Opus · efficient</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="playlist-name" data-i18n="playlistName">Playlist name</label>
+                  <input id="playlist-name" type="text" placeholder="My new playlist" />
+                </div>
+              </div>
+              <p class="helper" data-i18n="losslessWarning">FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.</p>
+              <label class="check" style="margin-top:12px;"><input id="rekordbox-playlist" type="checkbox" /><span data-i18n="rekordboxPlaylist">Create a Rekordbox-compatible .m3u8 playlist</span></label>
+            </details>
+
+            <label class="check"><input id="rights-confirmed" type="checkbox" /><span data-i18n="rights">I have the rights or permission to download these tracks and will follow the source service’s terms.</span></label>
+            <button class="primary" id="download-button" type="submit" data-i18n="download">Download to my library</button>
           </form>
         </section>
 
         <aside class="panel side-panel">
-          <h2>Simple by design</h2>
+          <h2 data-i18n="simpleDesign">Simple by design</h2>
           <ol>
-            <li>Pick where your song names come from.</li>
-            <li>Paste a link, or choose a plain text list.</li>
-            <li>Watch the progress while files land in your music folder.</li>
+            <li data-i18n="simpleOne">Pick where your song names come from.</li>
+            <li data-i18n="simpleTwo">Paste a link, or choose a plain text list.</li>
+            <li data-i18n="simpleThree">Watch the progress while files land in your music folder.</li>
           </ol>
-          <div class="notice"><strong>About sources</strong><br />Spotify and Beatport are used for public song metadata; matching audio is searched on YouTube for a consistent local library.</div>
+          <div class="notice"><strong data-i18n="aboutSources">About sources</strong><br /><span data-i18n="aboutSourcesHelp">Spotify and Beatport are used for public song metadata; matching audio is searched on YouTube for a consistent local library.</span></div>
         </aside>
       </div>
 
       <section class="panel status-panel" id="status-panel" aria-live="polite">
-        <div class="status-heading"><div><div class="step"><span>♫</span> Download status</div><h2 id="status-title">Getting things ready</h2></div><span class="badge is-running" id="status-badge">Preparing</span></div>
+        <div class="status-heading"><div><div class="step"><span>♫</span> <b data-i18n="downloadStatus">Download status</b></div><h2 id="status-title" data-i18n="preparingTitle">Getting things ready</h2></div><span class="badge is-running" id="status-badge" data-i18n="preparing">Preparing</span></div>
         <div class="progress-track"><div class="progress is-indeterminate" id="progress"></div></div>
-        <p class="status-copy" id="status-copy">Your download is being prepared.</p>
+        <p class="status-copy" id="status-copy" data-i18n="preparingHelp">Your download is being prepared.</p>
         <p class="current-track" id="current-track"></p>
-        <details class="log"><summary>Show download details</summary><pre id="download-log"></pre></details>
+        <details class="log"><summary data-i18n="showDetails">Show download details</summary><pre id="download-log"></pre></details>
+      </section>
+
+      <section class="panel library-panel" id="library-panel">
+        <div class="library-heading">
+          <div><div class="step"><span>♪</span> <b data-i18n="libraryHistory">Library & history</b></div><h2 data-i18n="previousDownloads">Previous downloads</h2></div>
+          <button class="secondary" id="scan-library" type="button" data-i18n="compareFolder">Compare folder</button>
+        </div>
+        <p class="library-summary" id="library-summary" data-i18n="historyHelp">Downloaded and already-existing tracks are highlighted here. Folder comparison never moves or deletes files.</p>
+        <audio id="audio-player" controls preload="metadata"></audio>
+        <div class="history-list" id="history-list"></div>
       </section>
     </main>
 
     <div class="update-dialog" id="update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title">
       <section class="update-card">
-        <h2 id="update-title">Checking for updates…</h2>
-        <p id="update-message">Looking at the GitHub source.</p>
-        <a class="helper hidden" id="release-link" href="#" target="_blank" rel="noreferrer">Open GitHub Releases</a>
-        <div class="dialog-actions"><button class="secondary" id="close-update" type="button">Close</button><button class="primary hidden" id="install-update" type="button" style="width:auto;margin-top:0;">Install update</button></div>
+        <h2 id="update-title" data-i18n="checkingUpdates">Checking for updates…</h2>
+        <p id="update-message" data-i18n="checkingGithub">Looking at the GitHub source.</p>
+        <a class="helper hidden" id="release-link" href="#" target="_blank" rel="noreferrer" data-i18n="openReleases">Open GitHub Releases</a>
+        <div class="dialog-actions"><button class="secondary" id="close-update" type="button" data-i18n="close">Close</button><button class="primary hidden" id="install-update" type="button" style="width:auto;margin-top:0;" data-i18n="installUpdate">Install update</button></div>
       </section>
     </div>
   </body>

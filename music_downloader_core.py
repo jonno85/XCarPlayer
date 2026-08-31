@@ -14,6 +14,7 @@ import subprocess
 import threading
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -21,11 +22,13 @@ from urllib.request import Request, urlopen
 
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}
 SUPPORTED_COOKIE_BROWSERS = {"", "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi"}
+SUPPORTED_AUDIO_FORMATS = {"mp3", "m4a", "flac", "wav", "opus"}
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".flac", ".wav", ".opus", ".ogg", ".aac"}
 
 
 class InputError(ValueError):
@@ -53,6 +56,8 @@ class ConfigStore:
         return {
             "download_dir": str(DEFAULT_LIBRARY_DIRECTORY),
             "github_repository": DEFAULT_GITHUB_REPOSITORY,
+            "language": "en",
+            "audio_format": "mp3",
         }
 
     def load(self) -> Dict[str, str]:
@@ -82,6 +87,12 @@ class ConfigStore:
         normalized = {
             "download_dir": str(Path(output_directory).expanduser()),
             "github_repository": repository,
+            "language": "it" if values.get("language") == "it" else "en",
+            "audio_format": (
+                str(values.get("audio_format"))
+                if values.get("audio_format") in SUPPORTED_AUDIO_FORMATS
+                else "mp3"
+            ),
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = self.path.with_suffix(".tmp")
@@ -357,17 +368,142 @@ def ffmpeg_path() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
+def normalized_track_key(value: str) -> str:
+    """Normalize a title or filename for conservative duplicate detection."""
+    value = Path(value).stem
+    value = re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", value, flags=re.UNICODE))
+    return value.casefold().strip()
+
+
+class LibraryHistory:
+    """Persistent, non-destructive index of downloads and existing library files."""
+
+    def __init__(self, history_path: Optional[Path] = None) -> None:
+        self.path = history_path or application_data_directory() / "history.json"
+        self._lock = threading.Lock()
+
+    def entries(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            try:
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                return []
+        if not isinstance(raw, list):
+            return []
+        entries = []
+        for item in raw:
+            if not isinstance(item, dict) or not item.get("path"):
+                continue
+            path = Path(str(item["path"]))
+            entry = dict(item)
+            entry["available"] = path.is_file()
+            entries.append(entry)
+        return sorted(entries, key=lambda item: str(item.get("downloaded_at", "")), reverse=True)
+
+    def record(
+        self,
+        path: Path,
+        track: Track,
+        source: str,
+        audio_format: str,
+        playlist_id: str,
+    ) -> Dict[str, Any]:
+        resolved = path.expanduser().resolve()
+        entry = {
+            "id": uuid.uuid4().hex,
+            "title": track.title or resolved.stem,
+            "artist": track.artist,
+            "label": track.label if track.title != "YouTube item" else resolved.stem,
+            "path": str(resolved),
+            "format": audio_format,
+            "source": source,
+            "playlist_id": playlist_id,
+            "downloaded_at": datetime.now(timezone.utc).isoformat(),
+            "available": True,
+        }
+        with self._lock:
+            existing = self._read_unlocked()
+            existing = [item for item in existing if str(item.get("path")) != str(resolved)]
+            existing.insert(0, entry)
+            self._write_unlocked(existing[:2000])
+        return entry
+
+    def scan(self, directory: Path) -> Dict[str, Any]:
+        root = directory.expanduser().resolve()
+        if not root.is_dir():
+            raise InputError("The selected music folder does not exist yet.")
+        files = [
+            path for path in root.rglob("*")
+            if path.is_file() and path.suffix.casefold() in AUDIO_EXTENSIONS
+        ]
+        indexed_paths = {str(Path(item["path"]).resolve()) for item in self.entries()}
+        return {
+            "directory": str(root),
+            "total": len(files),
+            "tracked": sum(str(path.resolve()) in indexed_paths for path in files),
+            "untracked": sum(str(path.resolve()) not in indexed_paths for path in files),
+            "files": [
+                {
+                    "name": path.name,
+                    "path": str(path.resolve()),
+                    "format": path.suffix.lstrip(".").lower(),
+                    "tracked": str(path.resolve()) in indexed_paths,
+                }
+                for path in sorted(files, key=lambda item: item.name.casefold())[:500]
+            ],
+        }
+
+    def find_existing(self, directory: Path, track: Track) -> Optional[Path]:
+        if not directory.is_dir() or track.title == "YouTube item":
+            return None
+        desired = normalized_track_key(
+            f"{track.artist} {track.title}" if track.artist else track.title
+        )
+        for path in directory.iterdir():
+            if path.is_file() and path.suffix.casefold() in AUDIO_EXTENSIONS:
+                candidate = normalized_track_key(path.name)
+                if candidate == desired:
+                    return path
+        return None
+
+    def resolve_media(self, entry_id: str) -> Path:
+        for entry in self.entries():
+            if entry.get("id") == entry_id:
+                path = Path(str(entry["path"])).resolve()
+                if path.is_file() and path.suffix.casefold() in AUDIO_EXTENSIONS:
+                    return path
+                raise InputError("That audio file is no longer available.")
+        raise InputError("That history item was not found.")
+
+    def _read_unlocked(self) -> List[Dict[str, Any]]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            return raw if isinstance(raw, list) else []
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return []
+
+    def _write_unlocked(self, entries: List[Dict[str, Any]]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(self.path)
+
+
 class DownloadManager:
     """Runs yt-dlp jobs in background threads and exposes safe status snapshots."""
 
-    def __init__(self) -> None:
+    def __init__(self, history: Optional[LibraryHistory] = None) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self.history = history or LibraryHistory()
 
     def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         source = str(payload.get("source", "")).lower()
         if source not in SUPPORTED_SOURCES:
             raise InputError("Choose YouTube, Spotify, Beatport, or a text list.")
+        audio_format = str(payload.get("audio_format", "mp3")).lower()
+        if audio_format not in SUPPORTED_AUDIO_FORMATS:
+            raise InputError("Choose MP3, M4A, FLAC, WAV, or Opus.")
         if not payload.get("rights_confirmed"):
             raise InputError("Confirm that you have the rights or permission to download these tracks.")
 
@@ -385,8 +521,12 @@ class DownloadManager:
             "total": 0,
             "completed": 0,
             "failed": 0,
+            "existing": 0,
             "output_dir": str(output_directory),
+            "audio_format": audio_format,
             "log": [],
+            "items": [],
+            "playlist_path": "",
             "needs_browser_cookies": False,
         }
         with self._lock:
@@ -404,7 +544,11 @@ class DownloadManager:
         with self._lock:
             if job_id not in self._jobs:
                 raise InputError("That download session no longer exists.")
-            return dict(self._jobs[job_id], log=list(self._jobs[job_id]["log"]))
+            return dict(
+                self._jobs[job_id],
+                log=list(self._jobs[job_id]["log"]),
+                items=[dict(item) for item in self._jobs[job_id]["items"]],
+            )
 
     def _update(self, job_id: str, **changes: Any) -> None:
         with self._lock:
@@ -427,27 +571,66 @@ class DownloadManager:
                 message=f"Downloading {len(tracks)} track{'s' if len(tracks) != 1 else ''}…",
             )
             self._log(job_id, f"Saving to {output_directory}")
+            saved_paths: List[Path] = []
             for index, track in enumerate(tracks, start=1):
                 self._update(job_id, current=track.label, message=f"Downloading {index} of {len(tracks)}")
                 self._log(job_id, f"[{index}/{len(tracks)}] {track.label}")
+                existing_path = self.history.find_existing(output_directory, track)
+                if existing_path:
+                    history_entry = self.history.record(
+                        existing_path, track, "existing", existing_path.suffix.lstrip("."), job_id
+                    )
+                    with self._lock:
+                        self._jobs[job_id]["existing"] += 1
+                        self._jobs[job_id]["items"].append({
+                            "label": track.label,
+                            "status": "existing",
+                            "media_id": history_entry["id"],
+                        })
+                    saved_paths.append(existing_path)
+                    self._log(job_id, f"Already in library: {existing_path.name}")
+                    continue
                 try:
-                    self._download_track(job_id, track, output_directory, payload)
+                    saved_path = self._download_track(job_id, track, output_directory, payload)
+                    history_entry = self.history.record(
+                        saved_path, track, str(payload.get("source")), str(payload.get("audio_format", "mp3")), job_id
+                    )
                     with self._lock:
                         self._jobs[job_id]["completed"] += 1
+                        self._jobs[job_id]["items"].append({
+                            "label": track.label,
+                            "status": "downloaded",
+                            "media_id": history_entry["id"],
+                        })
+                    saved_paths.append(saved_path)
                 except Exception as error:  # Keep processing a list after a failed match.
                     with self._lock:
                         self._jobs[job_id]["failed"] += 1
+                        self._jobs[job_id]["items"].append({
+                            "label": track.label,
+                            "status": "failed",
+                            "media_id": "",
+                        })
                         if "sign in to confirm you're not a bot" in str(error).lower():
                             self._jobs[job_id]["needs_browser_cookies"] = True
                     self._log(job_id, f"Could not download {track.label}: {error}")
+            if payload.get("rekordbox_playlist") and saved_paths:
+                playlist_path = self._write_m3u8(
+                    output_directory,
+                    str(payload.get("playlist_name", "")).strip(),
+                    saved_paths,
+                )
+                self._update(job_id, playlist_path=str(playlist_path))
+                self._log(job_id, f"Rekordbox playlist: {playlist_path.name}")
             result = self.snapshot(job_id)
-            if result["completed"]:
+            if result["completed"] or result["existing"]:
                 self._update(
                     job_id,
                     state="complete",
                     current="",
                     message=(
                         f"Finished: {result['completed']} saved"
+                        + (f", {result['existing']} already in library" if result["existing"] else "")
                         + (f", {result['failed']} skipped." if result["failed"] else ".")
                     ),
                 )
@@ -482,7 +665,7 @@ class DownloadManager:
             browser = self._youtube_cookie_browser(payload)
             if str(payload.get("download_type", "single")) == "playlist":
                 return self._youtube_playlist_tracks(url, browser)
-            return [Track(title="YouTube item", direct_url=url)]
+            return [self._youtube_single_track(url, browser)]
         if source == "spotify":
             return spotify_tracks(
                 url,
@@ -526,13 +709,32 @@ class DownloadManager:
             raise InputError("YouTube did not return any playable items from this playlist.")
         return tracks
 
+    def _youtube_single_track(self, url: str, browser: str) -> Track:
+        try:
+            import yt_dlp
+        except ImportError as error:
+            raise InputError("Download support is still installing. Restart the app and try again.") from error
+        options: Dict[str, Any] = {"quiet": True, "no_warnings": True, "noplaylist": True}
+        if browser:
+            options["cookiesfrombrowser"] = (browser,)
+        try:
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(url, download=False)
+        except Exception as error:
+            raise InputError("YouTube could not read this item. Check the link or sign-in option.") from error
+        return Track(
+            title=str(info.get("track") or info.get("title") or "YouTube item"),
+            artist=str(info.get("artist") or info.get("uploader") or ""),
+            direct_url=url,
+        )
+
     def _download_track(
         self,
         job_id: str,
         track: Track,
         output_directory: Path,
         payload: Dict[str, Any],
-    ) -> None:
+    ) -> Path:
         try:
             import yt_dlp
         except ImportError as error:
@@ -549,6 +751,13 @@ class DownloadManager:
             and str(payload.get("download_type", "single")) == "playlist"
             and track.title == "YouTube item"
         )
+        audio_format = str(payload.get("audio_format", "mp3")).lower()
+        postprocessor: Dict[str, Any] = {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": audio_format,
+        }
+        if audio_format == "mp3":
+            postprocessor["preferredquality"] = "320"
         options = {
             "format": "bestaudio/best",
             "outtmpl": str(output_directory / f"{filename}.%(ext)s"),
@@ -560,11 +769,7 @@ class DownloadManager:
             "overwrites": False,
             "noplaylist": not is_youtube_playlist,
             "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "0",
-                },
+                postprocessor,
                 {"key": "FFmpegMetadata", "add_metadata": True},
             ],
             "progress_hooks": [self._progress_hook(job_id, track.label)],
@@ -584,6 +789,32 @@ class DownloadManager:
         source = track.direct_url or f"ytsearch1:{track.search_query}"
         with yt_dlp.YoutubeDL(options) as downloader:
             downloader.download([source])
+        expected_path = output_directory / f"{filename}.{audio_format}"
+        if expected_path.is_file():
+            return expected_path
+        candidates = sorted(
+            (
+                path for path in output_directory.iterdir()
+                if path.is_file() and path.suffix.casefold() == f".{audio_format}"
+            ),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if not candidates:
+            raise InputError("The converter finished but the output file could not be found.")
+        return candidates[0]
+
+    def _write_m3u8(self, directory: Path, name: str, paths: List[Path]) -> Path:
+        playlist_name = safe_filename(name or f"Rekordbox {datetime.now():%Y-%m-%d %H%M}")
+        playlist_path = directory / f"{playlist_name}.m3u8"
+        lines = ["#EXTM3U"]
+        for path in paths:
+            try:
+                lines.append(path.resolve().relative_to(directory.resolve()).as_posix())
+            except ValueError:
+                lines.append(str(path.resolve()))
+        playlist_path.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
+        return playlist_path
 
     def _progress_hook(self, job_id: str, label: str) -> Callable[[Dict[str, Any]], None]:
         def update_progress(status: Dict[str, Any]) -> None:
