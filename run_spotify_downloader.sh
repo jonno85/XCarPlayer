@@ -39,42 +39,39 @@ echo "[2/4] Activating virtual environment..."
 source env/bin/activate
 
 # Install or upgrade dependencies
-echo "[3/4] Installing dependencies (spotdl, spotipy, yt-dlp)..."
-pip install --upgrade pip spotdl spotipy yt-dlp
+echo "[3/4] Installing dependencies..."
+pip install --upgrade pip spotdl spotipy yt-dlp requests beautifulsoup4
 
-# Choose download source
-echo "============================================================"
-echo "Select download source:"
-echo "  1) Spotify playlist"
-echo "  2) Beatport (track or chart URL)"
-echo "============================================================"
-read -rp "Enter choice [1/2]: " CHOICE
+# Install ffmpeg if missing (required for mp3/m4a conversion)
+if ! command -v ffmpeg &>/dev/null; then
+    if command -v brew &>/dev/null; then
+        echo "ffmpeg not found. Installing via Homebrew..."
+        brew install ffmpeg
+    else
+        echo "Warning: ffmpeg not found and Homebrew is not available."
+        echo "Install ffmpeg manually: https://ffmpeg.org/download.html"
+    fi
+fi
 
-case "$CHOICE" in
-    2)
-        echo "[4/4] Starting Beatport track download..."
-        echo "============================================================"
-        echo "Enter the artist and track name to search YouTube Music."
-        echo "(The yt-dlp Beatport extractor is currently broken upstream.)"
-        echo ""
-        read -rp "Artist name: " BP_ARTIST
-        read -rp "Track name:  " BP_TRACK
-        read -rp "Enter output directory (default: downloads): " OUT_DIR
-        OUT_DIR="${OUT_DIR:-downloads}"
-        mkdir -p "$OUT_DIR"
-        SEARCH_QUERY="$BP_ARTIST - $BP_TRACK"
-        echo ""
-        echo "Searching YouTube Music for: $SEARCH_QUERY"
-        yt-dlp \
-            --extract-audio \
-            --audio-format mp3 \
-            --audio-quality 0 \
-            --output "$OUT_DIR/%(uploader)s - %(title)s.%(ext)s" \
-            "ytsearch1:$SEARCH_QUERY"
-        ;;
-    *)
-        echo "[4/4] Starting download_spotify_playlist.py..."
-        echo "============================================================"
-        python download_spotify_playlist.py
-        ;;
-esac
+# Select which downloader to run
+echo ""
+echo "============================================================"
+echo "Select downloader:"
+echo "  1. Spotify playlist downloader (download_spotify_playlist.py)"
+echo "  2. YouTube search downloader with Spotify/Beatport URL support (youtube_search_downloader.py)"
+echo "  3. Beatport playlist downloader (download_beatport_playlist.py)"
+echo "============================================================"
+read -rp "Enter choice (1, 2 or 3): " CHOICE
+
+echo "[4/4] Starting downloader..."
+echo "============================================================"
+if [ "$CHOICE" = "1" ]; then
+    python download_spotify_playlist.py
+elif [ "$CHOICE" = "2" ]; then
+    python youtube_search_downloader.py
+elif [ "$CHOICE" = "3" ]; then
+    python download_beatport_playlist.py
+else
+    echo "Invalid choice."
+    exit 1
+fi

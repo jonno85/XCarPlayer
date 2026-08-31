@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-expo-app@latest . --template bare-minimum)",
+      "Bash(npx create-expo-app@latest tmp --template bare-minimum)",
+      "Bash(mv tmp/* tmp/.* .)",
+      "Bash(rm -rf tmp)",
+      "Bash(wait)",
+      "Bash(npm install:*)",
+      "Bash(git commit:*)",
+      "Bash(pip index:*)",
+      "Bash(npx expo:*)",
+      "Bash(pod install:*)",
+      "Bash(python3:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(yarn add:*)"
+    ]
+  }
+}
