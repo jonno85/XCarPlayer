@@ -20,6 +20,8 @@ PyInstaller.__main__.run(
         "--name",
         "MusicLibraryDownloader",
         f"--specpath={ROOT / 'build'}",
+        f"--workpath={ROOT / 'build' / 'work'}",
+        f"--distpath={ROOT / 'dist'}",
         f"--add-data={ROOT / 'web'}{separator}web",
         str(ROOT / "music_downloader_ui.py"),
     ]

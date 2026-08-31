@@ -19,8 +19,10 @@ docker compose logs -f
 
 The default host endpoint is `http://NAS_ADDRESS:8899`. Configure that URL in the mobile app under [`../mobile-app/`](../mobile-app/).
 
-## Test
+## Spotify extraction diagnostic
 
 ```sh
-python -m unittest test_spotify_extract.py
+python test_spotify_extract.py
 ```
+
+This diagnostic contacts Spotify and compares extraction approaches; it is not an offline unit-test suite.
