@@ -66,6 +66,17 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         scan = self.post_json("/api/scan-library", {"directory": str(self.library)})["library"]
         self.assertEqual((scan["total"], scan["tracked"]), (1, 1))
 
+    def test_preview_endpoint_parses_exporter_csv_and_marks_existing(self) -> None:
+        preview = self.post_json("/api/preview", {
+            "source": "text",
+            "filename": "export.csv",
+            "tracks": "Artist Name(s),Track Name\nArtista,Canzone\n",
+            "output_dir": str(self.library),
+        })["preview"]
+        self.assertEqual(preview["total"], 1)
+        self.assertEqual(preview["tracks"][0]["title"], "Canzone")
+        self.assertTrue(preview["tracks"][0]["existing"])
+
     def test_media_endpoint_supports_byte_ranges_for_seeking(self) -> None:
         request = Request(
             f"{self.base_url}/api/media?id={self.entry['id']}",

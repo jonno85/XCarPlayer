@@ -97,6 +97,8 @@ def request_handler(
                 payload = self._read_json()
                 if self.path == "/api/config":
                     self._send_json({"settings": config_store.save(payload)})
+                elif self.path == "/api/preview":
+                    self._send_json({"preview": download_manager.preview(payload)})
                 elif self.path == "/api/download":
                     self._send_json({"job": download_manager.create(payload)}, HTTPStatus.ACCEPTED)
                 elif self.path == "/api/pick-folder":
