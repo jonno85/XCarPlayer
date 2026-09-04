@@ -47,6 +47,8 @@
       aboutSources: "About sources", aboutSourcesHelp: "Spotify and Beatport provide public song metadata; matching audio is searched on YouTube.",
       downloadStatus: "Download status", preparingTitle: "Getting things ready", preparing: "Preparing",
       preparingHelp: "Your download is being prepared.", showDetails: "Show download details",
+      pause: "Pause", resume: "Resume", stop: "Stop", paused: "Paused", stopped: "Stopped",
+      pausedTitle: "Download paused", stoppedTitle: "Download stopped",
       checkingUpdates: "Checking for updates…", checkingGithub: "Looking at the GitHub source.",
       openReleases: "Open GitHub Releases", close: "Close", installUpdate: "Install update",
       spotifyNoLogin: "No login, Premium, or app key required",
@@ -96,6 +98,8 @@
       aboutSources: "Informazioni sulle sorgenti", aboutSourcesHelp: "Spotify e Beatport forniscono metadati pubblici; l’audio corrispondente viene cercato su YouTube.",
       downloadStatus: "Stato download", preparingTitle: "Preparazione in corso", preparing: "Preparazione",
       preparingHelp: "Il download è in preparazione.", showDetails: "Mostra dettagli download",
+      pause: "Pausa", resume: "Riprendi", stop: "Interrompi", paused: "In pausa", stopped: "Interrotto",
+      pausedTitle: "Download in pausa", stoppedTitle: "Download interrotto",
       checkingUpdates: "Controllo aggiornamenti…", checkingGithub: "Controllo della sorgente GitHub.",
       openReleases: "Apri GitHub Releases", close: "Chiudi", installUpdate: "Installa aggiornamento",
       spotifyNoLogin: "Non servono accesso, Premium o chiavi app",
@@ -277,17 +281,24 @@
     const failed = Number(job.failed || 0);
     const existing = Number(job.existing || 0);
     const total = Number(job.total || 0);
-    const finished = job.state === "complete" || job.state === "failed";
+    const isPaused = job.state === "paused";
+    const isStopped = job.state === "stopped";
+    const finished = job.state === "complete" || job.state === "failed" || isStopped;
     const isFailed = job.state === "failed";
     const badge = $("#status-badge");
-    badge.textContent = t(isFailed ? "attention" : finished ? "finished" : "working");
-    badge.className = `badge${isFailed ? " is-failed" : finished ? "" : " is-running"}`;
-    $("#status-title").textContent = t(isFailed ? "needsAttention" : finished ? "ready" : "building");
+    const badgeKey = isFailed ? "attention" : isStopped ? "stopped" : isPaused ? "paused" : finished ? "finished" : "working";
+    badge.textContent = t(badgeKey);
+    badge.className = `badge${isFailed ? " is-failed" : isStopped ? " is-stopped" : isPaused ? " is-paused" : finished ? "" : " is-running"}`;
+    const titleKey = isFailed ? "needsAttention" : isStopped ? "stoppedTitle" : isPaused ? "pausedTitle" : finished ? "ready" : "building";
+    $("#status-title").textContent = t(titleKey);
     $("#status-copy").textContent = job.message || t("working");
     $("#current-track").textContent = job.current || (finished ? job.output_dir : "");
     $("#download-log").textContent = (job.log || []).join("\n") || "…";
+    $("#pause-download").classList.toggle("hidden", finished || isPaused);
+    $("#resume-download").classList.toggle("hidden", !isPaused);
+    $("#stop-download").classList.toggle("hidden", finished);
     const progress = $("#progress");
-    if (total && (finished || completed || failed || existing)) {
+    if (total && (finished || completed || failed || existing || isPaused)) {
       progress.style.width = `${Math.min(100, Math.round(((completed + failed + existing) / total) * 100))}%`;
       progress.style.marginLeft = "0";
       progress.classList.remove("is-indeterminate");
@@ -317,7 +328,18 @@
     }
   }
 
-  async function startDownload(event) {
+  async function controlJob(action) {
+    if (!state.jobId) return;
+    try {
+      const { job } = await request(`/api/job/${action}`, {
+        method: "POST",
+        body: JSON.stringify({ id: state.jobId }),
+      });
+      renderJob(job);
+    } catch (error) {
+      message(error.message, "error");
+    }
+  }
     event.preventDefault();
     if (state.working) return;
     const outputDir = $("#output-directory").value.trim();
@@ -516,6 +538,15 @@
       renderPreview();
     });
     $("#download-form").addEventListener("submit", startDownload);
+    $("#pause-download").addEventListener("click", () => controlJob("pause"));
+    $("#resume-download").addEventListener("click", () => controlJob("resume"));
+    $("#stop-download").addEventListener("click", () => {
+      if (window.confirm(state.language === "it"
+        ? "Interrompere il download? I brani già salvati restano nella cartella."
+        : "Stop this download? Tracks already saved will stay in your folder.")) {
+        controlJob("stop");
+      }
+    });
     $("#pick-folder").addEventListener("click", pickFolder);
     $("#save-folder").addEventListener("click", () => savePreferences(true).catch((error) => message(error.message, "error")));
     $("#language-select").addEventListener("change", (event) => {

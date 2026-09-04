@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ from urllib.request import Request, urlopen
 
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}
@@ -35,6 +36,17 @@ AUDIO_EXTENSIONS = {".mp3", ".m4a", ".flac", ".wav", ".opus", ".ogg", ".aac"}
 
 class InputError(ValueError):
     """A validation error that can be displayed directly in the local UI."""
+
+
+class DownloadStopped(Exception):
+    """Raised when the user stops an in-progress download job."""
+
+
+class DownloadPaused(Exception):
+    """Raised to abort the current file so the job can wait until resume."""
+
+
+ACTIVE_JOB_STATES = {"preparing", "downloading", "paused"}
 
 
 def application_data_directory() -> Path:
@@ -573,6 +585,7 @@ class DownloadManager:
 
     def __init__(self, history: Optional[LibraryHistory] = None) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
+        self._controls: Dict[str, Dict[str, threading.Event]] = {}
         self._lock = threading.Lock()
         self.history = history or LibraryHistory()
 
@@ -610,6 +623,10 @@ class DownloadManager:
         }
         with self._lock:
             self._jobs[job_id] = job
+            self._controls[job_id] = {
+                "pause": threading.Event(),
+                "stop": threading.Event(),
+            }
         thread = threading.Thread(
             target=self._run,
             args=(job_id, payload, output_directory),
@@ -652,6 +669,79 @@ class DownloadManager:
                 items=[dict(item) for item in self._jobs[job_id]["items"]],
             )
 
+    def pause(self, job_id: str) -> Dict[str, Any]:
+        """Hold the job after the current file check; remaining tracks wait until resume."""
+        job = self.snapshot(job_id)
+        if job["state"] not in ACTIVE_JOB_STATES:
+            raise InputError("That download has already finished.")
+        if self._is_stopped(job_id):
+            raise InputError("That download is already stopping.")
+        with self._lock:
+            self._controls[job_id]["pause"].set()
+            self._jobs[job_id].update(
+                state="paused",
+                message="Download paused. Resume to continue, or stop to cancel the rest.",
+            )
+        self._log(job_id, "Paused")
+        return self.snapshot(job_id)
+
+    def resume(self, job_id: str) -> Dict[str, Any]:
+        job = self.snapshot(job_id)
+        if job["state"] != "paused":
+            raise InputError("That download is not paused.")
+        if self._is_stopped(job_id):
+            raise InputError("That download is already stopping.")
+        with self._lock:
+            self._controls[job_id]["pause"].clear()
+            completed = self._jobs[job_id]["completed"]
+            existing = self._jobs[job_id]["existing"]
+            failed = self._jobs[job_id]["failed"]
+            total = self._jobs[job_id]["total"]
+            remaining = max(0, total - completed - existing - failed)
+            self._jobs[job_id].update(
+                state="downloading",
+                message=(
+                    f"Downloading {remaining} remaining track{'s' if remaining != 1 else ''}…"
+                    if total
+                    else "Downloading…"
+                ),
+            )
+        self._log(job_id, "Resumed")
+        return self.snapshot(job_id)
+
+    def stop(self, job_id: str) -> Dict[str, Any]:
+        """Cancel remaining tracks. Files already saved are kept."""
+        job = self.snapshot(job_id)
+        if job["state"] not in ACTIVE_JOB_STATES:
+            raise InputError("That download has already finished.")
+        with self._lock:
+            self._controls[job_id]["stop"].set()
+            self._controls[job_id]["pause"].clear()
+            self._jobs[job_id].update(message="Stopping…")
+        self._log(job_id, "Stop requested")
+        return self.snapshot(job_id)
+
+    def _is_stopped(self, job_id: str) -> bool:
+        with self._lock:
+            control = self._controls.get(job_id)
+            return bool(control and control["stop"].is_set())
+
+    def _is_paused(self, job_id: str) -> bool:
+        with self._lock:
+            control = self._controls.get(job_id)
+            return bool(control and control["pause"].is_set())
+
+    def _checkpoint(self, job_id: str, *, abort_current: bool = False) -> None:
+        if self._is_stopped(job_id):
+            raise DownloadStopped()
+        if self._is_paused(job_id):
+            if abort_current:
+                raise DownloadPaused()
+            while self._is_paused(job_id) and not self._is_stopped(job_id):
+                time.sleep(0.05)
+            if self._is_stopped(job_id):
+                raise DownloadStopped()
+
     def _update(self, job_id: str, **changes: Any) -> None:
         with self._lock:
             self._jobs[job_id].update(changes)
@@ -666,15 +756,24 @@ class DownloadManager:
         try:
             output_directory.mkdir(parents=True, exist_ok=True)
             tracks = self._tracks_for_payload(payload)
+            self._checkpoint(job_id)
             self._update(
                 job_id,
-                state="downloading",
+                state="paused" if self._is_paused(job_id) else "downloading",
                 total=len(tracks),
                 message=f"Downloading {len(tracks)} track{'s' if len(tracks) != 1 else ''}…",
             )
             self._log(job_id, f"Saving to {output_directory}")
             saved_paths: List[Path] = []
+            stopped_early = False
             for index, track in enumerate(tracks, start=1):
+                try:
+                    self._checkpoint(job_id)
+                except DownloadStopped:
+                    stopped_early = True
+                    remaining = len(tracks) - index + 1
+                    self._log(job_id, f"Stopped with {remaining} track{'s' if remaining != 1 else ''} remaining")
+                    break
                 self._update(job_id, current=track.label, message=f"Downloading {index} of {len(tracks)}")
                 self._log(job_id, f"[{index}/{len(tracks)}] {track.label}")
                 existing_path = self.history.find_existing(output_directory, track)
@@ -698,7 +797,7 @@ class DownloadManager:
                     self._log(job_id, f"Already in library: {existing_path.name}")
                     continue
                 try:
-                    saved_path = self._download_track(job_id, track, output_directory, payload)
+                    saved_path = self._download_until_saved(job_id, track, output_directory, payload)
                     history_entry = self.history.record(
                         saved_path,
                         track,
@@ -715,7 +814,17 @@ class DownloadManager:
                             "media_id": history_entry["id"],
                         })
                     saved_paths.append(saved_path)
+                except DownloadStopped:
+                    stopped_early = True
+                    remaining = len(tracks) - index + 1
+                    self._log(job_id, f"Stopped with {remaining} track{'s' if remaining != 1 else ''} remaining")
+                    break
                 except Exception as error:  # Keep processing a list after a failed match.
+                    if self._is_control_error(error, DownloadStopped):
+                        stopped_early = True
+                        remaining = len(tracks) - index + 1
+                        self._log(job_id, f"Stopped with {remaining} track{'s' if remaining != 1 else ''} remaining")
+                        break
                     with self._lock:
                         self._jobs[job_id]["failed"] += 1
                         self._jobs[job_id]["items"].append({
@@ -735,7 +844,22 @@ class DownloadManager:
                 self._update(job_id, playlist_path=str(playlist_path))
                 self._log(job_id, f"Rekordbox playlist: {playlist_path.name}")
             result = self.snapshot(job_id)
-            if result["completed"] or result["existing"]:
+            remaining = max(
+                0,
+                result["total"] - result["completed"] - result["existing"] - result["failed"],
+            )
+            if stopped_early:
+                self._update(
+                    job_id,
+                    state="stopped",
+                    current="",
+                    message=(
+                        f"Stopped: {result['completed']} saved"
+                        + (f", {result['existing']} already in library" if result["existing"] else "")
+                        + (f", {remaining} cancelled." if remaining else ".")
+                    ),
+                )
+            elif result["completed"] or result["existing"]:
                 self._update(
                     job_id,
                     state="complete",
@@ -760,12 +884,63 @@ class DownloadManager:
                     current="",
                     message=message,
                 )
+        except DownloadStopped:
+            result = self.snapshot(job_id)
+            remaining = max(
+                0,
+                result["total"] - result["completed"] - result["existing"] - result["failed"],
+            )
+            self._update(
+                job_id,
+                state="stopped",
+                current="",
+                message=(
+                    "Stopped before any tracks were saved."
+                    if not result["completed"] and not result["existing"]
+                    else f"Stopped: {result['completed']} saved"
+                    + (f", {result['existing']} already in library" if result["existing"] else "")
+                    + (f", {remaining} cancelled." if remaining else ".")
+                ),
+            )
+            self._log(job_id, "Stopped")
         except InputError as error:
             self._update(job_id, state="failed", message=str(error), current="")
             self._log(job_id, str(error))
         except Exception as error:
             self._update(job_id, state="failed", message="The download stopped unexpectedly.", current="")
             self._log(job_id, f"Unexpected error: {error}")
+
+    def _download_until_saved(
+        self,
+        job_id: str,
+        track: Track,
+        output_directory: Path,
+        payload: Dict[str, Any],
+    ) -> Path:
+        while True:
+            self._checkpoint(job_id)
+            try:
+                return self._download_track(job_id, track, output_directory, payload)
+            except DownloadPaused:
+                self._log(job_id, f"Paused during {track.label}; will retry this track after resume")
+                continue
+            except Exception as error:
+                if self._is_control_error(error, DownloadPaused):
+                    self._log(job_id, f"Paused during {track.label}; will retry this track after resume")
+                    continue
+                if self._is_control_error(error, DownloadStopped):
+                    raise DownloadStopped() from error
+                raise
+
+    def _is_control_error(self, error: BaseException, control_type: type) -> bool:
+        current: Optional[BaseException] = error
+        seen: set = set()
+        while current is not None and id(current) not in seen:
+            if isinstance(current, control_type):
+                return True
+            seen.add(id(current))
+            current = current.__cause__ or current.__context__
+        return False
 
     def _tracks_for_payload(
         self, payload: Dict[str, Any], allow_prepared: bool = True
@@ -945,6 +1120,7 @@ class DownloadManager:
         def update_progress(status: Dict[str, Any]) -> None:
             if status.get("status") != "downloading":
                 return
+            self._checkpoint(job_id, abort_current=True)
             downloaded = status.get("downloaded_bytes") or 0
             total = status.get("total_bytes") or status.get("total_bytes_estimate") or 0
             if total:

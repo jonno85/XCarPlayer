@@ -1,6 +1,7 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -104,6 +105,52 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
             nested = root / "desktop-downloader" / "web"
             nested.mkdir(parents=True)
             self.assertEqual(repository_root(nested), root)
+
+    def test_job_control_endpoints_pause_resume_and_stop_an_active_job(self) -> None:
+        ready = threading.Event()
+        release = threading.Event()
+
+        def gated_download(job_id, track, output_directory, payload):
+            self.manager._checkpoint(job_id)
+            ready.set()
+            while not release.is_set():
+                self.manager._checkpoint(job_id)
+                time.sleep(0.02)
+            path = Path(output_directory) / f"{track.artist} - {track.title}.mp3"
+            path.write_bytes(b"audio")
+            return path
+
+        self.manager._tracks_for_payload = lambda payload, allow_prepared=True: [  # type: ignore[method-assign]
+            Track(title="One", artist="A"),
+            Track(title="Two", artist="B"),
+        ]
+        self.manager._download_track = gated_download  # type: ignore[method-assign]
+        job = self.post_json("/api/download", {
+            "source": "text",
+            "tracks": "A - One\nB - Two",
+            "output_dir": str(self.library),
+            "rights_confirmed": True,
+        })["job"]
+        self.assertTrue(ready.wait(timeout=2))
+        paused = self.post_json("/api/job/pause", {"id": job["id"]})["job"]
+        self.assertEqual(paused["state"], "paused")
+        resumed = self.post_json("/api/job/resume", {"id": job["id"]})["job"]
+        self.assertEqual(resumed["state"], "downloading")
+        stopped = self.post_json("/api/job/stop", {"id": job["id"]})["job"]
+        self.assertEqual(stopped["message"], "Stopping…")
+        for _ in range(100):
+            snapshot = self.get_json(f"/api/job?id={job['id']}")["job"]
+            if snapshot["state"] == "stopped":
+                break
+            time.sleep(0.02)
+        else:
+            self.fail("Stopped job did not settle")
+        self.assertEqual(snapshot["state"], "stopped")
+
+    def test_job_control_endpoints_reject_unknown_jobs(self) -> None:
+        with self.assertRaises(HTTPError) as error:
+            self.post_json("/api/job/pause", {"id": "missing"})
+        self.assertEqual(error.exception.code, 400)
 
 
 if __name__ == "__main__":

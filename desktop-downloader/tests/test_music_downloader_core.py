@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -190,12 +191,20 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual(second["items"][0]["status"], "existing")
 
     def _wait_for_job(self, manager: DownloadManager, job_id: str) -> dict:
-        for _ in range(100):
+        for _ in range(400):
             job = manager.snapshot(job_id)
-            if job["state"] in {"complete", "failed"}:
+            if job["state"] in {"complete", "failed", "stopped"}:
                 return job
-            time.sleep(0.01)
+            time.sleep(0.02)
         self.fail("Download worker did not finish")
+
+    def _wait_until(self, predicate, message: str, timeout: float = 2.0) -> None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if predicate():
+                return
+            time.sleep(0.02)
+        self.fail(message)
 
     def test_preview_highlights_existing_files_and_prepared_edits_are_used(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -219,6 +228,121 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 ],
             })
             self.assertEqual([track.label for track in prepared], ["Edited — Title"])
+
+    def test_download_job_can_be_paused_then_resumed(self) -> None:
+        release = threading.Event()
+        started = []
+        downloaded = []
+
+        class GatedDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="One", artist="A"), Track(title="Two", artist="B")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                self._checkpoint(job_id)
+                started.append(track.title)
+                while not release.is_set():
+                    self._checkpoint(job_id)
+                    time.sleep(0.02)
+                if track.title == "One":
+                    release.clear()
+                self._checkpoint(job_id)
+                path = output_directory / f"{track.artist} - {track.title}.{payload.get('audio_format', 'mp3')}"
+                path.write_bytes(b"audio")
+                downloaded.append(track.title)
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = GatedDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "A - One\nB - Two",
+                "output_dir": str(root / "music"),
+                "rights_confirmed": True,
+            })
+            self._wait_until(lambda: started == ["One"], "First track did not start")
+            paused = manager.pause(job["id"])
+            self.assertEqual(paused["state"], "paused")
+            time.sleep(0.15)
+            self.assertEqual(downloaded, [])
+            self.assertEqual(manager.snapshot(job["id"])["state"], "paused")
+            manager.resume(job["id"])
+            release.set()
+            self._wait_until(lambda: started == ["One", "Two"], "Second track did not start after resume")
+            release.set()
+            finished = self._wait_for_job(manager, job["id"])
+            self.assertEqual(finished["state"], "complete")
+            self.assertEqual(downloaded, ["One", "Two"])
+            self.assertEqual(finished["completed"], 2)
+
+    def test_download_job_stop_cancels_remaining_tracks(self) -> None:
+        release = threading.Event()
+        started = []
+        downloaded = []
+
+        class GatedDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="One", artist="A"), Track(title="Two", artist="B")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                self._checkpoint(job_id)
+                started.append(track.title)
+                while not release.is_set():
+                    self._checkpoint(job_id)
+                    time.sleep(0.02)
+                if track.title == "One":
+                    release.clear()
+                self._checkpoint(job_id)
+                path = output_directory / f"{track.artist} - {track.title}.{payload.get('audio_format', 'mp3')}"
+                path.write_bytes(b"audio")
+                downloaded.append(track.title)
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = GatedDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "A - One\nB - Two",
+                "output_dir": str(root / "music"),
+                "rights_confirmed": True,
+            })
+            self._wait_until(lambda: started == ["One"], "First track did not start")
+            release.set()
+            self._wait_until(lambda: started == ["One", "Two"], "Second track did not start")
+            stopped = manager.stop(job["id"])
+            self.assertEqual(stopped["message"], "Stopping…")
+            finished = self._wait_for_job(manager, job["id"])
+            self.assertEqual(finished["state"], "stopped")
+            self.assertEqual(downloaded, ["One"])
+            self.assertEqual(finished["completed"], 1)
+            self.assertIn("cancelled", finished["message"])
+
+    def test_pause_is_rejected_after_the_job_finishes(self) -> None:
+        class InstantManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="Song", artist="Artist")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                path = output_directory / "Artist - Song.mp3"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = InstantManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "Artist - Song",
+                "output_dir": str(root / "music"),
+                "rights_confirmed": True,
+            })
+            self._wait_for_job(manager, job["id"])
+            with self.assertRaisesRegex(InputError, "already finished"):
+                manager.pause(job["id"])
+            with self.assertRaisesRegex(InputError, "already finished"):
+                manager.stop(job["id"])
 
 
 if __name__ == "__main__":

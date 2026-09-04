@@ -127,8 +127,12 @@
       .status-panel { display: none; margin-top: 22px; padding: 22px; }
       .status-panel.is-visible { display: block; }
       .status-heading { display: flex; justify-content: space-between; gap: 15px; align-items: flex-start; }
+      .status-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+      .danger { border-color: #f0c4cc; color: var(--danger); background: #fff8f9; }
+      .danger:hover:not(:disabled) { border-color: #e39aa8; background: #fff1f3; }
       .badge { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 20px; color: #246552; background: #ddf5ec; font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
       .badge.is-running { color: #5541b4; background: #eeeaff; } .badge.is-failed { color: #9d273b; background: #fce7eb; }
+      .badge.is-paused { color: #8a5a12; background: #fff0d6; } .badge.is-stopped { color: #5d6a78; background: #e8eef3; }
       .progress-track { height: 9px; overflow: hidden; margin: 16px 0 9px; border-radius: 10px; background: #ebeff3; }
       .progress { width: 4%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--violet), var(--teal)); transition: width .4s ease; }
       .progress.is-indeterminate { animation: indeterminate 1.25s ease-in-out infinite alternate; }
@@ -311,6 +315,11 @@
         <div class="progress-track"><div class="progress is-indeterminate" id="progress"></div></div>
         <p class="status-copy" id="status-copy" data-i18n="preparingHelp">Your download is being prepared.</p>
         <p class="current-track" id="current-track"></p>
+        <div class="status-controls" id="job-controls">
+          <button class="secondary hidden" id="pause-download" type="button" data-i18n="pause">Pause</button>
+          <button class="secondary hidden" id="resume-download" type="button" data-i18n="resume">Resume</button>
+          <button class="secondary danger hidden" id="stop-download" type="button" data-i18n="stop">Stop</button>
+        </div>
         <details class="log"><summary data-i18n="showDetails">Show download details</summary><pre id="download-log"></pre></details>
       </section>
 
