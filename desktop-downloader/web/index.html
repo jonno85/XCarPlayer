@@ -100,6 +100,15 @@
       .play-button { width: 36px; height: 36px; border: 0; border-radius: 50%; color: white; background: var(--violet); font-weight: 800; }
       .library-summary { margin: 0 0 12px; color: var(--muted); font-size: .87rem; }
       audio { width: 100%; height: 42px; margin: 12px 0; }
+      .preview-panel { margin-top: 22px; padding: 18px; border: 1px solid #dcd5fa; border-radius: 14px; background: #fbfaff; }
+      .preview-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+      .preview-heading h3 { margin: 0; font-size: 1rem; }
+      .preview-list { display: grid; gap: 7px; max-height: 350px; overflow: auto; }
+      .preview-row { display: grid; grid-template-columns: 25px minmax(100px, .8fr) minmax(130px, 1.2fr) auto; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+      .preview-row input[type="text"] { padding: 8px; font-size: .82rem; }
+      .preview-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--violet); }
+      .existing-chip { padding: 4px 7px; border-radius: 20px; color: #276b57; background: #dcf5eb; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+      .spotify-import { margin-top: 14px; padding: 13px; border-radius: 10px; background: #f1faf6; }
       .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 24px; color: #445466; font-size: .85rem; }
       .check input { width: 17px; height: 17px; accent-color: var(--violet); }
       .primary {
@@ -141,6 +150,7 @@
       @media (max-width: 520px) {
         .page { width: min(100% - 22px, 1020px); padding-top: 22px; } header { margin-bottom: 28px; }
         .source-grid, .credential-grid, .advanced-grid { grid-template-columns: 1fr; } .folder-row { flex-direction: column; } .folder-row .secondary { width: 100%; }
+        .preview-row { grid-template-columns: 23px 1fr; } .preview-row input, .preview-row .existing-chip { grid-column: 2; }
         .main-panel { padding: 22px; } .brand { font-size: .93rem; } .quiet-button { padding: 8px 10px; font-size: .8rem; }
       }
     </style>
@@ -211,14 +221,16 @@
                   </select>
                 </div>
               </details>
-              <details class="credential-box hidden" id="spotify-credentials">
-                <summary data-i18n="spotifyKey">Spotify needs a one-time app key — add it here</summary>
-                <p><span data-i18n="spotifyHelp">Spotify links provide track names only. This app looks for matching audio on YouTube. Create a free key at</span> <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify for Developers</a>. <span data-i18n="spotifyPrivacy">Your key is used for this download only and is not saved.</span></p>
-                <div class="credential-grid">
-                  <div class="field"><label for="spotify-client-id">Client ID</label><input id="spotify-client-id" type="text" autocomplete="off" /></div>
-                  <div class="field"><label for="spotify-client-secret">Client Secret</label><input id="spotify-client-secret" type="password" autocomplete="off" /></div>
+              <div class="spotify-import hidden" id="spotify-public-import">
+                <strong data-i18n="spotifyNoLogin">No login, Premium, or app key required</strong>
+                <p class="helper" data-i18n="spotifyPublicHelp">The app reads track names from Spotify’s public page. Private playlists are not available.</p>
+                <div class="file-choice" style="margin-top:10px;margin-bottom:0;">
+                  <label class="file-label" for="spotify-import-file" data-i18n="importExporter">Or import exporter TXT/CSV</label>
+                  <input id="spotify-import-file" type="file" accept=".txt,.csv,text/plain,text/csv" />
+                  <span class="file-name" id="spotify-import-name" data-i18n="noFile">No file chosen</span>
                 </div>
-              </details>
+              </div>
+              <button class="secondary hidden" id="preview-url-button" type="button" style="margin-top:14px;" data-i18n="previewTracks">Preview tracks</button>
             </div>
 
             <div id="text-section" class="hidden">
@@ -226,14 +238,24 @@
               <div class="field">
                 <label data-i18n="textOrPaste">Text file or pasted songs</label>
                 <div class="file-choice">
-                  <label class="file-label" for="song-file" data-i18n="chooseText">Choose .txt file</label>
-                  <input id="song-file" type="file" accept=".txt,text/plain" />
+                  <label class="file-label" for="song-file" data-i18n="chooseTextCsv">Choose TXT/CSV file</label>
+                  <input id="song-file" type="file" accept=".txt,.csv,text/plain,text/csv" />
                   <span class="file-name" id="file-name" data-i18n="noFile">No file chosen</span>
                 </div>
                 <textarea id="song-list" spellcheck="false" placeholder="Artist - Song title&#10;Another artist - Another song&#10;&#10;One song per line. Lines beginning with # are ignored."></textarea>
                 <p class="helper" data-i18n="textSearchHelp">The app searches YouTube for each song and writes it in your selected format.</p>
+                <button class="secondary" id="preview-text-button" type="button" style="margin-top:10px;" data-i18n="previewTracks">Preview tracks</button>
               </div>
             </div>
+
+            <section class="preview-panel hidden" id="track-preview">
+              <div class="preview-heading">
+                <div><h3 data-i18n="previewTitle">Check tracks before downloading</h3><p class="helper" id="preview-summary"></p></div>
+                <button class="secondary" id="select-all-tracks" type="button" data-i18n="toggleAll">Toggle all</button>
+              </div>
+              <div class="preview-list" id="preview-list"></div>
+              <p class="helper" data-i18n="previewHelp">Edit artist/title if needed. Existing files are highlighted and will not be downloaded twice.</p>
+            </section>
 
             <div class="step" style="margin-top: 29px;"><span>3</span> <b data-i18n="saveLibrary">Save to your library</b></div>
             <div class="field">

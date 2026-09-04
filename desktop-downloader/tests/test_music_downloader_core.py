@@ -9,7 +9,9 @@ from music_downloader_core import (
     InputError,
     LibraryHistory,
     Track,
+    _spotify_tracks_from_embed_data,
     normalized_track_key,
+    parse_import_tracks,
     parse_spotify_url,
     parse_text_tracks,
     safe_filename,
@@ -38,6 +40,41 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             ("playlist", "3BIeoPTMw0FkSezCDxGNIj"),
         )
         self.assertEqual(parse_spotify_url("spotify:track:abc123"), ("track", "abc123"))
+
+    def test_spotify_public_embed_playlist_is_parsed_without_credentials(self) -> None:
+        data = {
+            "props": {"pageProps": {"state": {"data": {"entity": {
+                "trackList": [
+                    {"title": "Canzone", "subtitle": "Artista"},
+                    {"title": "Second Song", "subtitle": "Other Artist"},
+                ]
+            }}}}}
+        }
+        tracks = _spotify_tracks_from_embed_data(data, "playlist")
+        self.assertEqual(
+            [(track.artist, track.title) for track in tracks],
+            [("Artista", "Canzone"), ("Other Artist", "Second Song")],
+        )
+
+    def test_spotify_public_embed_track_is_parsed_without_credentials(self) -> None:
+        data = {
+            "props": {"pageProps": {"state": {"data": {"entity": {
+                "type": "track",
+                "title": "Canzone",
+                "artists": [{"name": "Artista"}],
+            }}}}}
+        }
+        self.assertEqual(
+            _spotify_tracks_from_embed_data(data, "track")[0].label,
+            "Artista — Canzone",
+        )
+
+    def test_exporter_csv_artist_and_title_columns_are_detected(self) -> None:
+        tracks = parse_import_tracks(
+            'Track Name,Artist Name(s),Album\n"Canzone","Artista","Album A"\n',
+            "playlist.csv",
+        )
+        self.assertEqual([(track.artist, track.title) for track in tracks], [("Artista", "Canzone")])
 
     def test_source_validation_rejects_a_link_from_another_provider(self) -> None:
         with self.assertRaisesRegex(InputError, "valid YouTube"):
@@ -159,6 +196,29 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 return job
             time.sleep(0.01)
         self.fail("Download worker did not finish")
+
+    def test_preview_highlights_existing_files_and_prepared_edits_are_used(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "Artist - Song.mp3").write_bytes(b"audio")
+            manager = DownloadManager(LibraryHistory(root / "history.json"))
+            preview = manager.preview({
+                "source": "text",
+                "tracks": "Artist - Song\nOther - New",
+                "output_dir": str(root),
+            })
+            self.assertEqual(
+                [track["existing"] for track in preview["tracks"]],
+                [True, False],
+            )
+            prepared = manager._tracks_for_payload({
+                "source": "spotify",
+                "prepared_tracks": [
+                    {"artist": "Edited", "title": "Title", "included": True},
+                    {"artist": "Skip", "title": "Me", "included": False},
+                ],
+            })
+            self.assertEqual([track.label for track in prepared], ["Edited — Title"])
 
 
 if __name__ == "__main__":

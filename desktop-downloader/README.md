@@ -51,7 +51,9 @@ The app opens at a random `127.0.0.1` address in the default browser. It only li
 3. Choose a music folder and optionally save it as the default.
 4. Confirm you have the right or permission to download the tracks, then start.
 
-For Spotify, create a free application at [Spotify for Developers](https://developer.spotify.com/dashboard) and paste its Client ID and Client Secret into the UI. They are used only for that download and are not stored.
+Spotify public tracks and playlists are read from their public embed pages. No Spotify login, Premium subscription, Client ID, or Client Secret is required. Preview the extracted tracks before downloading so titles can be corrected or excluded. Private playlists are not available through this method.
+
+If Spotify changes or blocks its public page, export the playlist as TXT or CSV and choose **Or import exporter TXT/CSV**. Artist/title columns are detected automatically; plain text should contain one `Artist - Title` entry per line.
 
 If YouTube asks you to sign in or confirms that you are not a bot, expand **Only if YouTube asks you to sign in** and choose the browser where you are already signed in. The downloader reads that browser’s local cookies only for the requested download; it never uploads or saves them.
 

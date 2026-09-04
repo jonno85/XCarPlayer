@@ -4,6 +4,7 @@
   const state = {
     source: "youtube", jobId: null, polling: null, working: false,
     language: "en", history: [], queue: [], queueIndex: -1,
+    previewTracks: [], previewSource: "", importText: "", importFilename: "",
   };
   const $ = (selector) => document.querySelector(selector);
   const sourceCards = document.querySelectorAll("[data-source]");
@@ -18,7 +19,7 @@
       linkContains: "This link contains", singleItem: "One song or video", playlist: "A playlist",
       youtubeSignIn: "Only if YouTube asks you to sign in",
       youtubeSignInHelp: "Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.",
-      signedBrowser: "Signed-in browser", spotifyKey: "Spotify needs a one-time app key — add it here",
+      signedBrowser: "Signed-in browser",
       addList: "Add your song list", textOrPaste: "Text file or pasted songs", chooseText: "Choose .txt file",
       saveLibrary: "Save to your library", musicFolder: "Music folder", chooseFolder: "Choose folder…",
       saveDefault: "Save as default", folderHelp: "Use the folder picker; your default is stored only on this computer.",
@@ -40,8 +41,6 @@
       beatportLabel: "Beatport track or playlist link",
       youtubeHint: "Choose “Playlist” below if the link contains more than one song.",
       metadataHint: "We read the public song names, then search YouTube for matching audio.",
-      spotifyHelp: "Spotify links provide track names only. This app looks for matching audio on YouTube. Create a free key at",
-      spotifyPrivacy: "Your key is used for this download only and is not saved.",
       noFile: "No file chosen", textSearchHelp: "The app searches YouTube for each song and writes it in your selected format.",
       simpleDesign: "Simple by design", simpleOne: "Pick where your song names come from.",
       simpleTwo: "Paste a link, or choose a plain text list.", simpleThree: "Watch the progress while files land in your music folder.",
@@ -50,6 +49,14 @@
       preparingHelp: "Your download is being prepared.", showDetails: "Show download details",
       checkingUpdates: "Checking for updates…", checkingGithub: "Looking at the GitHub source.",
       openReleases: "Open GitHub Releases", close: "Close", installUpdate: "Install update",
+      spotifyNoLogin: "No login, Premium, or app key required",
+      spotifyPublicHelp: "The app reads track names from Spotify’s public page. Private playlists are unavailable; Spotify may limit very large public pages to 100 tracks.",
+      importExporter: "Or import exporter TXT/CSV", previewTracks: "Preview tracks",
+      chooseTextCsv: "Choose TXT/CSV file", previewTitle: "Check tracks before downloading",
+      toggleAll: "Toggle all", previewHelp: "Edit artist/title if needed. Existing files are highlighted and will not be downloaded twice.",
+      previewSummary: "{total} tracks · {existing} already in your library", artist: "Artist",
+      title: "Title", previewFirst: "Preview the Spotify playlist before downloading.",
+      readingTracks: "Reading track list…",
     },
     it: {
       updates: "Controlla aggiornamenti", quit: "Esci", eyebrow: "La tua musica, raccolta con ordine",
@@ -61,7 +68,7 @@
       linkContains: "Questo link contiene", singleItem: "Un brano o video", playlist: "Una playlist",
       youtubeSignIn: "Solo se YouTube richiede l’accesso",
       youtubeSignInHelp: "Scegli il browser in cui hai già effettuato l’accesso a YouTube. I cookie restano su questo computer e vengono letti solo per completare il download.",
-      signedBrowser: "Browser con accesso", spotifyKey: "Spotify richiede una chiave una sola volta — aggiungila qui",
+      signedBrowser: "Browser con accesso",
       addList: "Aggiungi la lista brani", textOrPaste: "File di testo o brani incollati", chooseText: "Scegli file .txt",
       saveLibrary: "Salva nella libreria", musicFolder: "Cartella musica", chooseFolder: "Scegli cartella…",
       saveDefault: "Salva predefinita", folderHelp: "Usa il selettore; la cartella predefinita viene salvata solo su questo computer.",
@@ -83,8 +90,6 @@
       beatportLabel: "Link a brano o playlist Beatport",
       youtubeHint: "Scegli “Playlist” qui sotto se il link contiene più brani.",
       metadataHint: "Leggiamo i nomi pubblici dei brani e cerchiamo l’audio corrispondente su YouTube.",
-      spotifyHelp: "I link Spotify forniscono solo i nomi dei brani. L’app cerca l’audio corrispondente su YouTube. Crea una chiave gratuita su",
-      spotifyPrivacy: "La chiave viene usata solo per questo download e non viene salvata.",
       noFile: "Nessun file scelto", textSearchHelp: "L’app cerca ogni brano su YouTube e lo salva nel formato selezionato.",
       simpleDesign: "Semplice per scelta", simpleOne: "Scegli da dove provengono i nomi dei brani.",
       simpleTwo: "Incolla un link o scegli una lista di testo.", simpleThree: "Segui l’avanzamento mentre i file arrivano nella cartella musicale.",
@@ -93,6 +98,14 @@
       preparingHelp: "Il download è in preparazione.", showDetails: "Mostra dettagli download",
       checkingUpdates: "Controllo aggiornamenti…", checkingGithub: "Controllo della sorgente GitHub.",
       openReleases: "Apri GitHub Releases", close: "Chiudi", installUpdate: "Installa aggiornamento",
+      spotifyNoLogin: "Non servono accesso, Premium o chiavi app",
+      spotifyPublicHelp: "L’app legge i nomi dei brani dalla pagina pubblica di Spotify. Le playlist private non sono disponibili; Spotify può limitare le pagine molto grandi a 100 brani.",
+      importExporter: "Oppure importa TXT/CSV da un exporter", previewTracks: "Anteprima brani",
+      chooseTextCsv: "Scegli file TXT/CSV", previewTitle: "Controlla i brani prima del download",
+      toggleAll: "Seleziona/deseleziona tutti", previewHelp: "Correggi artista o titolo se necessario. I file esistenti sono evidenziati e non verranno scaricati due volte.",
+      previewSummary: "{total} brani · {existing} già nella libreria", artist: "Artista",
+      title: "Titolo", previewFirst: "Visualizza l’anteprima della playlist Spotify prima del download.",
+      readingTracks: "Lettura elenco brani…",
     },
   };
 
@@ -127,6 +140,7 @@
     setSource(state.source);
     setWorking(state.working);
     renderHistory();
+    if (state.previewTracks.length) renderPreview();
   }
 
   function setSource(source) {
@@ -142,7 +156,11 @@
     }
     $("#download-type-section").classList.toggle("hidden", source !== "youtube");
     $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube");
-    $("#spotify-credentials").classList.toggle("hidden", source !== "spotify");
+    $("#spotify-public-import").classList.toggle("hidden", source !== "spotify");
+    $("#preview-url-button").classList.toggle("hidden", source !== "spotify");
+    $("#track-preview").classList.toggle(
+      "hidden", !state.previewTracks.length || state.previewSource !== source
+    );
   }
 
   function setWorking(working) {
@@ -157,9 +175,100 @@
     if (!file) return;
     if (file.size > 1_000_000) return message("Please choose a text file smaller than 1 MB.", "error");
     const reader = new FileReader();
-    reader.onload = () => { $("#song-list").value = String(reader.result || ""); };
+    reader.onload = () => {
+      $("#song-list").value = String(reader.result || "");
+      state.importFilename = file.name;
+      previewTracks("text", $("#song-list").value, file.name);
+    };
     reader.onerror = () => message("That text file could not be read.", "error");
     reader.readAsText(file);
+  }
+
+  function readSpotifyImport(event) {
+    const file = event.target.files[0];
+    $("#spotify-import-name").textContent = file ? file.name : t("noFile");
+    if (!file) return;
+    if (file.size > 1_000_000) return message("Please choose a TXT/CSV file smaller than 1 MB.", "error");
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.importText = String(reader.result || "");
+      state.importFilename = file.name;
+      previewTracks("spotify-import", state.importText, file.name);
+    };
+    reader.onerror = () => message("That exporter file could not be read.", "error");
+    reader.readAsText(file);
+  }
+
+  async function previewTracks(mode, content = "", filename = "") {
+    const source = mode === "spotify-import" ? "text" : mode;
+    const button = mode === "text" ? $("#preview-text-button") : $("#preview-url-button");
+    button.disabled = true;
+    button.textContent = t("readingTracks");
+    try {
+      const { preview } = await request("/api/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          source,
+          url: $("#source-url").value.trim(),
+          tracks: content || $("#song-list").value,
+          filename,
+          output_dir: $("#output-directory").value,
+        }),
+      });
+      state.previewSource = mode === "spotify-import" ? "spotify" : mode;
+      state.previewTracks = preview.tracks;
+      renderPreview();
+    } catch (error) {
+      message(error.message, "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = t("previewTracks");
+    }
+  }
+
+  function renderPreview() {
+    const panel = $("#track-preview");
+    const list = $("#preview-list");
+    list.replaceChildren();
+    const existing = state.previewTracks.filter((track) => track.existing).length;
+    $("#preview-summary").textContent = t("previewSummary")
+      .replace("{total}", state.previewTracks.length)
+      .replace("{existing}", existing);
+    state.previewTracks.forEach((track, index) => {
+      const row = document.createElement("div");
+      row.className = "preview-row";
+      const included = document.createElement("input");
+      included.type = "checkbox";
+      included.checked = track.included !== false;
+      included.addEventListener("change", () => { track.included = included.checked; });
+      const artist = document.createElement("input");
+      artist.type = "text";
+      artist.value = track.artist;
+      artist.placeholder = t("artist");
+      artist.setAttribute("aria-label", `${t("artist")} ${index + 1}`);
+      artist.addEventListener("input", () => { track.artist = artist.value; });
+      const title = document.createElement("input");
+      title.type = "text";
+      title.value = track.title;
+      title.placeholder = t("title");
+      title.setAttribute("aria-label", `${t("title")} ${index + 1}`);
+      title.addEventListener("input", () => { track.title = title.value; });
+      row.append(included, artist, title);
+      if (track.existing) {
+        const chip = document.createElement("span");
+        chip.className = "existing-chip";
+        chip.textContent = t("existing");
+        row.appendChild(chip);
+      }
+      list.appendChild(row);
+    });
+    panel.classList.toggle("hidden", state.previewSource !== state.source);
+  }
+
+  function invalidatePreview() {
+    state.previewTracks = [];
+    state.previewSource = "";
+    $("#track-preview").classList.add("hidden");
   }
 
   function renderJob(job) {
@@ -214,12 +323,14 @@
     const outputDir = $("#output-directory").value.trim();
     if (!outputDir) return message(t("chooseFolderFirst"), "error");
     if (!$("#rights-confirmed").checked) return message(t("permission"), "error");
+    if (state.source === "spotify" && (
+      state.previewSource !== "spotify" || !state.previewTracks.length
+    )) return message(t("previewFirst"), "error");
     const payload = {
       source: state.source, output_dir: outputDir, rights_confirmed: true,
       url: $("#source-url").value.trim(), tracks: $("#song-list").value,
       download_type: $("#download-type").value, youtube_browser: $("#youtube-browser").value,
-      spotify_client_id: $("#spotify-client-id").value.trim(),
-      spotify_client_secret: $("#spotify-client-secret").value.trim(),
+      prepared_tracks: state.previewSource === state.source ? state.previewTracks : undefined,
       audio_format: $("#audio-format").value,
       rekordbox_playlist: $("#rekordbox-playlist").checked,
       playlist_name: $("#playlist-name").value.trim(),
@@ -259,7 +370,10 @@
         method: "POST",
         body: JSON.stringify({ current: $("#output-directory").value }),
       });
-      if (path) $("#output-directory").value = path;
+      if (path) {
+        $("#output-directory").value = path;
+        invalidatePreview();
+      }
       else message(t("folderCancelled"));
     } catch (error) {
       message(error.message, "error");
@@ -390,6 +504,17 @@
     }
     sourceCards.forEach((card) => card.addEventListener("click", () => setSource(card.dataset.source)));
     $("#song-file").addEventListener("change", readSongFile);
+    $("#spotify-import-file").addEventListener("change", readSpotifyImport);
+    $("#preview-url-button").addEventListener("click", () => previewTracks("spotify"));
+    $("#preview-text-button").addEventListener("click", () => previewTracks(
+      "text", $("#song-list").value, state.importFilename
+    ));
+    $("#source-url").addEventListener("input", invalidatePreview);
+    $("#select-all-tracks").addEventListener("click", () => {
+      const selected = state.previewTracks.some((track) => track.included === false);
+      state.previewTracks.forEach((track) => { track.included = selected; });
+      renderPreview();
+    });
     $("#download-form").addEventListener("submit", startDownload);
     $("#pick-folder").addEventListener("click", pickFolder);
     $("#save-folder").addEventListener("click", () => savePreferences(true).catch((error) => message(error.message, "error")));

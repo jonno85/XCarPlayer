@@ -7,6 +7,8 @@ module does not access Spotify or Beatport audio streams.
 from __future__ import annotations
 
 import hashlib
+import csv
+import io
 import json
 import os
 import re
@@ -22,7 +24,7 @@ from urllib.request import Request, urlopen
 
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}
@@ -143,6 +145,52 @@ def parse_text_tracks(text: str) -> List[Track]:
     return tracks
 
 
+def parse_import_tracks(text: str, filename: str = "") -> List[Track]:
+    """Parse exporter TXT or CSV content into normalized tracks."""
+    if filename.lower().endswith(".csv") or _looks_like_csv(text):
+        tracks = _parse_csv_tracks(text)
+        if tracks:
+            return _unique_tracks(tracks)
+    return parse_text_tracks(text)
+
+
+def _looks_like_csv(text: str) -> bool:
+    first_line = next((line for line in text.splitlines() if line.strip()), "")
+    normalized = first_line.casefold()
+    return ("," in first_line or ";" in first_line) and any(
+        word in normalized for word in ("artist", "title", "track", "song")
+    )
+
+
+def _parse_csv_tracks(text: str) -> List[Track]:
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
+        rows = list(csv.reader(io.StringIO(text), dialect))
+    except (csv.Error, UnicodeError):
+        return []
+    if not rows:
+        return []
+
+    def header_key(value: str) -> str:
+        return re.sub(r"[^a-z]", "", value.casefold())
+
+    headers = [header_key(value) for value in rows[0]]
+    artist_names = {"artist", "artists", "artistname", "artistnames"}
+    title_names = {"title", "track", "trackname", "song", "songtitle", "name"}
+    artist_index = next((i for i, value in enumerate(headers) if value in artist_names), None)
+    title_index = next((i for i, value in enumerate(headers) if value in title_names), None)
+    if artist_index is None or title_index is None:
+        return []
+    tracks = []
+    for row in rows[1:]:
+        if max(artist_index, title_index) >= len(row):
+            continue
+        artist, title = row[artist_index].strip(), row[title_index].strip()
+        if title:
+            tracks.append(Track(title=title, artist=artist))
+    return tracks
+
+
 def parse_spotify_url(url: str) -> Tuple[str, str]:
     """Return the Spotify item type and ID for a public track or playlist URL."""
     value = url.strip()
@@ -180,61 +228,90 @@ def validate_source_url(source: str, url: str) -> str:
     return value
 
 
-def spotify_tracks(url: str, client_id: str, client_secret: str) -> List[Track]:
-    """Read metadata from a public Spotify track or playlist using app credentials."""
-    if not client_id.strip() or not client_secret.strip():
-        raise InputError(
-            "Spotify needs a Client ID and Client Secret. Create a free app at "
-            "developer.spotify.com/dashboard, then paste both values above."
-        )
+def spotify_tracks(url: str) -> List[Track]:
+    """Read metadata from a public Spotify embed page without API credentials."""
     try:
-        import spotipy
-        from spotipy.oauth2 import SpotifyClientCredentials
+        import requests
+        from bs4 import BeautifulSoup
     except ImportError as error:
         raise InputError("Spotify support is still installing. Restart the app and try again.") from error
 
     item_type, item_id = parse_spotify_url(url)
-    try:
-        client = spotipy.Spotify(
-            auth_manager=SpotifyClientCredentials(
-                client_id=client_id.strip(),
-                client_secret=client_secret.strip(),
+    page_urls = [
+        f"https://open.spotify.com/embed/{item_type}/{item_id}",
+        f"https://open.spotify.com/{item_type}/{item_id}",
+    ]
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    last_error: Optional[Exception] = None
+    for page_url in page_urls:
+        try:
+            response = requests.get(page_url, headers=headers, timeout=20)
+            response.raise_for_status()
+            next_data = BeautifulSoup(response.text, "html.parser").find(
+                "script", id="__NEXT_DATA__"
             )
+            if not next_data or not next_data.string:
+                continue
+            tracks = _spotify_tracks_from_embed_data(json.loads(next_data.string), item_type)
+            if tracks:
+                return _unique_tracks(tracks)
+        except (requests.RequestException, json.JSONDecodeError) as error:
+            last_error = error
+            continue
+    raise InputError(
+        "Spotify could not read this public link. Make sure the playlist is public, "
+        "or import an exporter TXT/CSV file below."
+    ) from last_error
+
+
+def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> List[Track]:
+    """Handle the current Spotify embed payload and its previous playlist shape."""
+    try:
+        entity = data["props"]["pageProps"]["state"]["data"]["entity"]
+    except (KeyError, TypeError):
+        entity = {}
+    if item_type == "track" and isinstance(entity, dict):
+        title = str(entity.get("title") or entity.get("name") or "").strip()
+        artists = entity.get("artists") or []
+        artist = ", ".join(
+            str(value.get("name", "")).strip()
+            for value in artists
+            if isinstance(value, dict) and value.get("name")
         )
-        if item_type == "track":
-            track = client.track(item_id)
-            return [_spotify_track_to_track(track)]
+        if title:
+            return [Track(title=title, artist=artist)]
 
-        results = client.playlist_items(
-            item_id,
-            fields="items(track(name,artists(name),is_local)),next",
-            additional_types=("track",),
+    track_list = entity.get("trackList", []) if isinstance(entity, dict) else []
+    tracks = [
+        Track(title=str(item.get("title", "")).strip(), artist=str(item.get("subtitle", "")).strip())
+        for item in track_list
+        if isinstance(item, dict) and item.get("title")
+    ]
+    if tracks:
+        return tracks
+
+    try:
+        items = data["props"]["pageProps"]["componentProps"]["tracks"]["items"]
+    except (KeyError, TypeError):
+        return []
+    return [
+        Track(
+            title=str(item["track"]["name"]).strip(),
+            artist=", ".join(
+                str(artist.get("name", "")).strip()
+                for artist in item["track"].get("artists", [])
+                if artist.get("name")
+            ),
         )
-        tracks: List[Track] = []
-        while results:
-            for item in results.get("items", []):
-                track = item.get("track") or {}
-                if track.get("is_local"):
-                    continue
-                if track.get("name") and track.get("artists"):
-                    tracks.append(_spotify_track_to_track(track))
-            results = client.next(results) if results.get("next") else None
-    except Exception as error:
-        raise InputError(
-            "Spotify could not read this link. Confirm that it is public and that your "
-            "Client ID and Secret are valid."
-        ) from error
-
-    if not tracks:
-        raise InputError("Spotify did not return any downloadable track metadata.")
-    return _unique_tracks(tracks)
-
-
-def _spotify_track_to_track(track: Dict[str, Any]) -> Track:
-    artists = ", ".join(
-        artist.get("name", "").strip() for artist in track.get("artists", []) if artist.get("name")
-    )
-    return Track(title=track.get("name", "").strip(), artist=artists)
+        for item in items
+        if isinstance(item, dict) and item.get("track", {}).get("name")
+    ]
 
 
 def beatport_tracks(url: str) -> List[Track]:
@@ -407,6 +484,7 @@ class LibraryHistory:
         source: str,
         audio_format: str,
         playlist_id: str,
+        source_url: str = "",
     ) -> Dict[str, Any]:
         resolved = path.expanduser().resolve()
         entry = {
@@ -417,6 +495,7 @@ class LibraryHistory:
             "path": str(resolved),
             "format": audio_format,
             "source": source,
+            "source_url": source_url,
             "playlist_id": playlist_id,
             "downloaded_at": datetime.now(timezone.utc).isoformat(),
             "available": True,
@@ -540,6 +619,29 @@ class DownloadManager:
         thread.start()
         return self.snapshot(job_id)
 
+    def preview(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve editable metadata and compare it to the destination library."""
+        tracks = self._tracks_for_payload(payload, allow_prepared=False)
+        output_value = str(payload.get("output_dir", "")).strip()
+        output_directory = Path(output_value).expanduser() if output_value else None
+        return {
+            "source": str(payload.get("source", "")).lower(),
+            "source_url": str(payload.get("url", "")).strip(),
+            "total": len(tracks),
+            "tracks": [
+                {
+                    "artist": track.artist,
+                    "title": track.title,
+                    "existing": bool(
+                        output_directory
+                        and self.history.find_existing(output_directory, track)
+                    ),
+                    "included": True,
+                }
+                for track in tracks
+            ],
+        }
+
     def snapshot(self, job_id: str) -> Dict[str, Any]:
         with self._lock:
             if job_id not in self._jobs:
@@ -578,7 +680,12 @@ class DownloadManager:
                 existing_path = self.history.find_existing(output_directory, track)
                 if existing_path:
                     history_entry = self.history.record(
-                        existing_path, track, "existing", existing_path.suffix.lstrip("."), job_id
+                        existing_path,
+                        track,
+                        "existing",
+                        existing_path.suffix.lstrip("."),
+                        job_id,
+                        str(payload.get("url", "")),
                     )
                     with self._lock:
                         self._jobs[job_id]["existing"] += 1
@@ -593,7 +700,12 @@ class DownloadManager:
                 try:
                     saved_path = self._download_track(job_id, track, output_directory, payload)
                     history_entry = self.history.record(
-                        saved_path, track, str(payload.get("source")), str(payload.get("audio_format", "mp3")), job_id
+                        saved_path,
+                        track,
+                        str(payload.get("source")),
+                        str(payload.get("audio_format", "mp3")),
+                        job_id,
+                        str(payload.get("url", "")),
                     )
                     with self._lock:
                         self._jobs[job_id]["completed"] += 1
@@ -655,10 +767,27 @@ class DownloadManager:
             self._update(job_id, state="failed", message="The download stopped unexpectedly.", current="")
             self._log(job_id, f"Unexpected error: {error}")
 
-    def _tracks_for_payload(self, payload: Dict[str, Any]) -> List[Track]:
+    def _tracks_for_payload(
+        self, payload: Dict[str, Any], allow_prepared: bool = True
+    ) -> List[Track]:
+        if allow_prepared and isinstance(payload.get("prepared_tracks"), list):
+            tracks = []
+            for item in payload["prepared_tracks"][:5000]:
+                if not isinstance(item, dict) or item.get("included") is False:
+                    continue
+                title = str(item.get("title", "")).strip()
+                artist = str(item.get("artist", "")).strip()
+                if title:
+                    tracks.append(Track(title=title, artist=artist))
+            if not tracks:
+                raise InputError("Select at least one track from the preview.")
+            return _unique_tracks(tracks)
         source = str(payload.get("source", "")).lower()
         if source == "text":
-            return parse_text_tracks(str(payload.get("tracks", "")))
+            return parse_import_tracks(
+                str(payload.get("tracks", "")),
+                str(payload.get("filename", "")),
+            )
         url = str(payload.get("url", ""))
         if source == "youtube":
             validate_source_url("youtube", url)
@@ -667,11 +796,7 @@ class DownloadManager:
                 return self._youtube_playlist_tracks(url, browser)
             return [self._youtube_single_track(url, browser)]
         if source == "spotify":
-            return spotify_tracks(
-                url,
-                str(payload.get("spotify_client_id", "")),
-                str(payload.get("spotify_client_secret", "")),
-            )
+            return spotify_tracks(url)
         return beatport_tracks(url)
 
     def _youtube_cookie_browser(self, payload: Dict[str, Any]) -> str:
