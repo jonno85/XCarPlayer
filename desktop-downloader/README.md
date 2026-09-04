@@ -11,7 +11,7 @@ It accepts:
 
 Spotify and Beatport links are used to read public track metadata only. Each listed track is then matched against YouTube and saved in the selected format with embedded title and artist metadata. This creates a consistent local library without attempting to access streaming-service audio.
 
-The interface is available in English and Italian. It also includes a native destination-folder picker, download history, in-app play/pause controls, duplicate highlighting, and selectable MP3, M4A, FLAC, WAV, or Opus output.
+The interface is available in English and Italian. It also includes a native destination-folder picker, download history, pause and stop for in-progress jobs, in-app play/pause controls, duplicate highlighting, and selectable MP3, M4A, FLAC, WAV, or Opus output.
 
 ## Start it
 
@@ -49,7 +49,7 @@ The app opens at a random `127.0.0.1` address in the default browser. It only li
 1. Pick YouTube, Spotify, Beatport, or **Song list**.
 2. Paste the URL, choose a `.txt` file, or paste one song per line.
 3. Choose a music folder and optionally save it as the default.
-4. Confirm you have the right or permission to download the tracks, then start.
+4. Confirm you have the right or permission to download the tracks, then start. Pause or stop from the download status panel if you need to wait or cancel remaining tracks.
 
 Spotify public tracks and playlists are read from their public embed pages. No Spotify login, Premium subscription, Client ID, or Client Secret is required. Preview the extracted tracks before downloading so titles can be corrected or excluded. Private playlists are not available through this method.
 

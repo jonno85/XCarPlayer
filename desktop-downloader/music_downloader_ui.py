@@ -101,6 +101,12 @@ def request_handler(
                     self._send_json({"preview": download_manager.preview(payload)})
                 elif self.path == "/api/download":
                     self._send_json({"job": download_manager.create(payload)}, HTTPStatus.ACCEPTED)
+                elif self.path == "/api/job/pause":
+                    self._send_json({"job": download_manager.pause(str(payload.get("id", "")))})
+                elif self.path == "/api/job/resume":
+                    self._send_json({"job": download_manager.resume(str(payload.get("id", "")))})
+                elif self.path == "/api/job/stop":
+                    self._send_json({"job": download_manager.stop(str(payload.get("id", "")))})
                 elif self.path == "/api/pick-folder":
                     selected = choose_destination_folder(
                         str(payload.get("current", config_store.load()["download_dir"]))
