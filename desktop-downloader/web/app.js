@@ -340,6 +340,8 @@
       message(error.message, "error");
     }
   }
+
+  async function startDownload(event) {
     event.preventDefault();
     if (state.working) return;
     const outputDir = $("#output-directory").value.trim();
