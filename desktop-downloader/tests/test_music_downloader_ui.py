@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import threading
 import time
@@ -151,6 +152,14 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.post_json("/api/job/pause", {"id": "missing"})
         self.assertEqual(error.exception.code, 400)
+
+    def test_frontend_javascript_parses_and_defines_source_handlers(self) -> None:
+        app_js = Path(__file__).resolve().parents[1] / "web" / "app.js"
+        source = app_js.read_text(encoding="utf-8")
+        self.assertIn("async function startDownload(event)", source)
+        self.assertIn('card.addEventListener("click", () => setSource(card.dataset.source))', source)
+        result = subprocess.run(["node", "--check", str(app_js)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":
