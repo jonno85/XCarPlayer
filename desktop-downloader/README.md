@@ -19,6 +19,15 @@ The interface is available in English and Italian. It also includes a native des
 
 GitHub Releases can contain self-contained Windows, macOS, and Linux bundles built by the included workflow. Download the bundle for the operating system, unpack it, and run `MusicLibraryDownloader` (or `MusicLibraryDownloader.exe` on Windows). Python and app libraries are bundled.
 
+On macOS, Gatekeeper often shows **“MusicLibraryDownloader” is damaged and can’t be opened** for this zip. The app is not actually corrupt: it is an unsigned PyInstaller bundle, and macOS treats a quarantined ad-hoc signature as damaged. After unzipping, run this once in Terminal on the extracted app, then open it again:
+
+```sh
+xattr -cr /path/to/MusicLibraryDownloader.app
+open /path/to/MusicLibraryDownloader.app
+```
+
+Replace the path with the real location (Downloads, Desktop, or Applications). Newer macOS zips also include `Open If Blocked.command`; double-click that after you allow it in System Settings if Finder still blocks the `.app`. A Developer ID signature and Apple notarization would avoid this prompt; the current workflow does not sign or notarize.
+
 ### Run from the repository
 
 This path needs Python 3.9+ installed once. The launcher automatically creates a private `.music-library-venv` and installs or updates all app libraries; nothing is installed into the system Python.

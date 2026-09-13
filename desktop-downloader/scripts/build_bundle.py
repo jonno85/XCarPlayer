@@ -29,4 +29,21 @@ PyInstaller.__main__.run(
 
 bundle_name = "MusicLibraryDownloader.app" if platform.system() == "Darwin" else "MusicLibraryDownloader"
 archive_stem = ROOT / "dist" / f"MusicLibraryDownloader-{platform.system().lower()}"
-shutil.make_archive(str(archive_stem), "zip", ROOT / "dist", bundle_name)
+if platform.system() == "Darwin":
+    staging = ROOT / "dist" / "macos-zip"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    shutil.copytree(ROOT / "dist" / bundle_name, staging / bundle_name, symlinks=True)
+    helper = staging / "Open If Blocked.command"
+    helper.write_text(
+        "#!/bin/bash\n"
+        'cd "$(dirname "$0")"\n'
+        'xattr -cr "MusicLibraryDownloader.app"\n'
+        'open "MusicLibraryDownloader.app"\n',
+        encoding="utf-8",
+    )
+    helper.chmod(0o755)
+    shutil.make_archive(str(archive_stem), "zip", staging)
+else:
+    shutil.make_archive(str(archive_stem), "zip", ROOT / "dist", bundle_name)
