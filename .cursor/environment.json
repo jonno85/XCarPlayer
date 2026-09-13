@@ -1,0 +1,15 @@
+{
+  "name": "XCarPlayer",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "synology-downloader",
+      "command": "cd synology-downloader && set -a && . ./.env && set +a && exec ./.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8899"
+    },
+    {
+      "name": "desktop-downloader",
+      "command": "cd desktop-downloader && BROWSER=true exec ./.music-library-venv/bin/python -u music_downloader_ui.py"
+    }
+  ],
+  "ports": [8899]
+}

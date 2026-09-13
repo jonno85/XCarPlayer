@@ -2,6 +2,7 @@
 songs.txt
 
 env/
+.venv/
 .music-library-venv/
 .music-library-bootstrap/
 __pycache__/
