@@ -33,6 +33,8 @@
       audioOptions: "Audio format & Rekordbox options", audioFormat: "Audio format",
       playlistName: "Playlist name", losslessWarning: "FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.",
       rekordboxPlaylist: "Create a Rekordbox-compatible .m3u8 playlist",
+      extractSuggestedStems: "Extract suggested vocal/drums WAVs for Rekordbox",
+      extractStemsHelp: "Only parts the hint marks useful. Rekordbox imports those WAVs as normal tracks (USB/third deck). Native STEMS still run on the mixed file in Performance mode. Needs the optional Demucs tool.",
       rights: "I have the rights or permission to download these tracks and will follow the source service’s terms.",
       download: "Download to my library", downloading: "Download in progress…",
       libraryHistory: "Library & history", previousDownloads: "Previous downloads",
@@ -62,7 +64,7 @@
       spotifyPublicHelp: "The app reads track names from Spotify’s public page. Private playlists are unavailable; Spotify may limit very large public pages to 100 tracks.",
       importExporter: "Or import exporter TXT/CSV", previewTracks: "Preview tracks",
       chooseTextCsv: "Choose TXT/CSV file", previewTitle: "Check tracks before downloading",
-      toggleAll: "Toggle all", previewHelp: "Edit artist/title if needed. Existing files are highlighted and will not be downloaded twice.",
+      toggleAll: "Toggle all", previewHelp: "Edit artist/title if needed. Camelot, FX, and stem hints come from Beatport or the title. Existing files are highlighted and will not be downloaded twice.",
       previewSummary: "{total} tracks · {existing} already in your library", artist: "Artist",
       title: "Title", previewFirst: "Preview the playlist before downloading.",
       readingTracks: "Reading track list…",
@@ -90,6 +92,8 @@
       audioOptions: "Formato audio e opzioni Rekordbox", audioFormat: "Formato audio",
       playlistName: "Nome playlist", losslessWarning: "FLAC/WAV non recuperano qualità già persa alla sorgente. MP3 è la scelta più compatibile con hardware Pioneer meno recente.",
       rekordboxPlaylist: "Crea una playlist .m3u8 compatibile con Rekordbox",
+      extractSuggestedStems: "Estrai WAV vocal/drums suggeriti per Rekordbox",
+      extractStemsHelp: "Solo le parti che il suggerimento indica come utili. Rekordbox importa quei WAV come brani normali (USB o terzo deck). Gli STEMS nativi restano sul file misto in Performance. Serve lo strumento opzionale Demucs.",
       rights: "Possiedo i diritti o il permesso per scaricare questi brani e rispetterò i termini del servizio sorgente.",
       download: "Scarica nella libreria", downloading: "Download in corso…",
       libraryHistory: "Libreria e cronologia", previousDownloads: "Download precedenti",
@@ -119,7 +123,7 @@
       spotifyPublicHelp: "L’app legge i nomi dei brani dalla pagina pubblica di Spotify. Le playlist private non sono disponibili; Spotify può limitare le pagine molto grandi a 100 brani.",
       importExporter: "Oppure importa TXT/CSV da un exporter", previewTracks: "Anteprima brani",
       chooseTextCsv: "Scegli file TXT/CSV", previewTitle: "Controlla i brani prima del download",
-      toggleAll: "Seleziona/deseleziona tutti", previewHelp: "Correggi artista o titolo se necessario. I file esistenti sono evidenziati e non verranno scaricati due volte.",
+      toggleAll: "Seleziona/deseleziona tutti", previewHelp: "Correggi artista o titolo se necessario. Camelot, FX e stem arrivano da Beatport o dal titolo. I file esistenti sono evidenziati e non verranno scaricati due volte.",
       previewSummary: "{total} brani · {existing} già nella libreria", artist: "Artista",
       title: "Titolo", previewFirst: "Visualizza l’anteprima della playlist prima del download.",
       readingTracks: "Lettura elenco brani…",
@@ -285,6 +289,12 @@
         chip.textContent = t("existing");
         row.appendChild(chip);
       }
+      if (track.dj_hint) {
+        const hint = document.createElement("div");
+        hint.className = "dj-hint";
+        hint.textContent = track.dj_hint;
+        row.appendChild(hint);
+      }
       list.appendChild(row);
     });
     panel.classList.toggle("hidden", state.previewSource !== state.source);
@@ -433,21 +443,19 @@
       state.previewSource !== state.source || !state.previewTracks.length
     )) return message(t("previewFirst"), "error");
     if (state.source === "search" && !state.selectedSearch) return message(t("searchFirst"), "error");
-    const artist = $("#search-artist").value.trim();
-    const title = $("#search-title").value.trim();
     const payload = {
       source: state.source, output_dir: outputDir, rights_confirmed: true,
       url: $("#source-url").value.trim(), tracks: $("#song-list").value,
       download_type: $("#download-type").value, youtube_browser: $("#youtube-browser").value,
       prepared_tracks: state.source === "search" && state.selectedSearch ? [{
-        artist: artist || state.selectedSearch.channel,
-        title: title || state.selectedSearch.title,
+        title: state.selectedSearch.title,
         direct_url: state.selectedSearch.url,
         duration_ms: state.selectedSearch.duration_ms,
         included: true,
       }] : (state.previewSource === state.source ? state.previewTracks : undefined),
       audio_format: $("#audio-format").value,
       rekordbox_playlist: $("#rekordbox-playlist").checked,
+      extract_suggested_stems: $("#extract-suggested-stems").checked,
       playlist_name: $("#playlist-name").value.trim(),
     };
     setWorking(true);

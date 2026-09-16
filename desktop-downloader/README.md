@@ -78,7 +78,9 @@ Use the local music folder as the source of truth and let Rekordbox reference it
 2. In **Audio format & Rekordbox options**, use MP3 320 kbps for the widest Pioneer/CDJ compatibility. M4A and FLAC are suitable only after checking the target player model.
 3. Enable **Create a Rekordbox-compatible .m3u8 playlist** and import that playlist into Rekordbox.
 4. Let Rekordbox analyze BPM, waveform, key, beatgrid, and cues, then use Rekordbox’s own Device Library export for USB media.
-5. Use **Compare folder** to identify files that are in the folder but not in this app’s history. It is deliberately a read-only diff: it never moves or deletes music.
+5. Each saved track also gets a `.dj.json` sidecar with Camelot numbering, harmonic neighbours, FX do/don’t hints, and which STEM is worth extracting. Import that JSON only as notes; Rekordbox ignores it.
+6. Optional: enable **Extract suggested vocal/drums WAVs for Rekordbox**. That writes `Track Name.stems/vocal.wav` and/or `drums.wav` only when the hint says they are useful. Import those WAVs as normal tracks (third deck, sampler, or USB). Rekordbox native STEMS still run on the mixed file in Performance mode and do **not** ingest these WAVs. Stem export needs [Demucs](https://github.com/adefossez/demucs) installed separately (`pip install demucs` in the app venv, or a `demucs` command on your PATH). Quality follows the YouTube source.
+7. Use **Compare folder** to identify files that are in the folder but not in this app’s history. It is deliberately a read-only diff: it never moves or deletes music.
 
 Do not perform an automatic two-way file sync against Rekordbox’s database. Rekordbox owns cue points, beatgrids, analysis, and device-export state; moving or deleting files behind it creates missing-track references. If the library must live on two computers, sync the stable audio folder one way and relocate missing files from inside Rekordbox.
 

@@ -15,6 +15,7 @@ from music_downloader_core import (
     _unique_tracks,
     choose_youtube_result,
     normalized_track_key,
+    output_filename_stem,
     parse_import_tracks,
     parse_spotify_url,
     parse_text_tracks,
@@ -244,6 +245,9 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual((first["completed"], first["existing"]), (1, 0))
             self.assertTrue(Path(first["playlist_path"]).is_file())
             self.assertEqual(first["items"][0]["status"], "downloaded")
+            sidecar = Path(first["output_dir"]) / "Artist - Song.dj.json"
+            self.assertTrue(sidecar.is_file())
+            self.assertIn('"title": "Song"', sidecar.read_text(encoding="utf-8"))
 
             second = manager.create(payload)
             second = self._wait_for_job(manager, second["id"])
@@ -414,6 +418,9 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                         "track_name": "I Believe",
                         "mix_name": "Original Mix",
                         "track_length_ms": 435253,
+                        "bpm": 126,
+                        "key": {"name": "A min", "camelot": "8A"},
+                        "genre": {"name": "House"},
                         "artists": [{"name": "Happy Clappers"}],
                     }},
                 },
@@ -433,6 +440,10 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         self.assertEqual(
             [(track.artist, track.title, track.duration_ms) for track in tracks],
             [("Happy Clappers", "I Believe (Original Mix)", 435253)],
+        )
+        self.assertEqual(
+            (tracks[0].bpm, tracks[0].camelot, tracks[0].genre, tracks[0].mix_name),
+            (126, "8A", "House", "Original Mix"),
         )
 
     def test_beatport_release_keeps_each_mix_and_ignores_recommended_albums(self) -> None:
@@ -559,7 +570,7 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         class FakeDownloadManager(DownloadManager):
             def _download_track(self, job_id, track, output_directory, payload):
                 seen.append((track.artist, track.title, track.direct_url))
-                path = output_directory / f"{track.artist} - {track.title}.{payload.get('audio_format', 'mp3')}"
+                path = output_directory / f"{track.title}.{payload.get('audio_format', 'mp3')}"
                 path.write_bytes(b"audio")
                 return path
 
@@ -572,8 +583,7 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 "rights_confirmed": True,
                 "audio_format": "mp3",
                 "prepared_tracks": [{
-                    "artist": "Happy Clappers",
-                    "title": "I Believe",
+                    "title": "Happy Clappers - I Believe (Original Mix)",
                     "direct_url": "https://www.youtube.com/watch?v=original",
                     "included": True,
                 }],
@@ -582,8 +592,26 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual(job["state"], "complete")
             self.assertEqual(
                 seen,
-                [("Happy Clappers", "I Believe", "https://www.youtube.com/watch?v=original")],
+                [("", "Happy Clappers - I Believe (Original Mix)", "https://www.youtube.com/watch?v=original")],
             )
+
+    def test_search_saves_use_the_youtube_title_not_the_typed_query(self) -> None:
+        track = Track(
+            title="Happy Clappers - I Believe (Original Mix)",
+            artist="typed query artist",
+            direct_url="https://www.youtube.com/watch?v=original",
+        )
+        self.assertEqual(
+            output_filename_stem(track, {"source": "search"}),
+            "%(title)s",
+        )
+        self.assertEqual(
+            output_filename_stem(
+                Track(title="I Believe", artist="Happy Clappers"),
+                {"source": "beatport"},
+            ),
+            "Happy Clappers - I Believe",
+        )
 
 
 if __name__ == "__main__":

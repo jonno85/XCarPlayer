@@ -173,6 +173,11 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         source = app_js.read_text(encoding="utf-8")
         self.assertIn("async function startDownload(event)", source)
         self.assertIn("async function searchYouTube()", source)
+        self.assertIn("state.selectedSearch.title", source)
+        self.assertNotRegex(
+            source,
+            r"prepared_tracks:[\s\S]*artist: artist \|\| state\.selectedSearch\.channel",
+        )
         self.assertIn('card.addEventListener("click", () => setSource(card.dataset.source))', source)
         result = subprocess.run(["node", "--check", str(app_js)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

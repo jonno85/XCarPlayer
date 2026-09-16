@@ -116,6 +116,7 @@
       .search-hit strong { grid-column: 1 / -1; font-size: .88rem; }
       .search-hit small { color: var(--muted); font-size: .75rem; }
       .existing-chip { padding: 4px 7px; border-radius: 20px; color: #276b57; background: #dcf5eb; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+      .dj-hint { grid-column: 2 / -1; color: #5b5478; font-size: .72rem; line-height: 1.35; }
       .spotify-import { margin-top: 14px; padding: 13px; border-radius: 10px; background: #f1faf6; }
       .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 24px; color: #445466; font-size: .85rem; }
       .check input { width: 17px; height: 17px; accent-color: var(--violet); }
@@ -162,7 +163,7 @@
       @media (max-width: 520px) {
         .page { width: min(100% - 22px, 1020px); padding-top: 22px; } header { margin-bottom: 28px; }
         .source-grid, .credential-grid, .advanced-grid { grid-template-columns: 1fr; } .folder-row { flex-direction: column; } .folder-row .secondary { width: 100%; }
-        .preview-row { grid-template-columns: 23px 1fr; } .preview-row input, .preview-row .existing-chip { grid-column: 2; }
+        .preview-row { grid-template-columns: 23px 1fr; } .preview-row input, .preview-row .existing-chip, .preview-row .dj-hint { grid-column: 2; }
         .main-panel { padding: 22px; } .brand { font-size: .93rem; } .quiet-button { padding: 8px 10px; font-size: .8rem; }
       }
     </style>
@@ -292,7 +293,7 @@
                 <button class="secondary" id="select-all-tracks" type="button" data-i18n="toggleAll">Toggle all</button>
               </div>
               <div class="preview-list" id="preview-list"></div>
-              <p class="helper" data-i18n="previewHelp">Edit artist/title if needed. Existing files are highlighted and will not be downloaded twice.</p>
+              <p class="helper" data-i18n="previewHelp">Edit artist/title if needed. Camelot, FX, and stem hints come from Beatport or the title. Existing files are highlighted and will not be downloaded twice.</p>
             </section>
 
             <div class="step" style="margin-top: 29px;"><span>3</span> <b data-i18n="saveLibrary">Save to your library</b></div>
@@ -326,6 +327,8 @@
               </div>
               <p class="helper" data-i18n="losslessWarning">FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.</p>
               <label class="check" style="margin-top:12px;"><input id="rekordbox-playlist" type="checkbox" /><span data-i18n="rekordboxPlaylist">Create a Rekordbox-compatible .m3u8 playlist</span></label>
+              <label class="check" style="margin-top:12px;"><input id="extract-suggested-stems" type="checkbox" /><span data-i18n="extractSuggestedStems">Extract suggested vocal/drums WAVs for Rekordbox</span></label>
+              <p class="helper" data-i18n="extractStemsHelp">Only parts the hint marks useful. Rekordbox imports those WAVs as normal tracks (USB/third deck). Native STEMS still run on the mixed file in Performance mode. Needs the optional Demucs tool.</p>
             </details>
 
             <label class="check"><input id="rights-confirmed" type="checkbox" /><span data-i18n="rights">I have the rights or permission to download these tracks and will follow the source service’s terms.</span></label>

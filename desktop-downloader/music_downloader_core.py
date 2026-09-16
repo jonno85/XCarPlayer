@@ -24,8 +24,10 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
+from dj_styling import build_dj_card, camelot_from_key, prepare_dj_assets, preview_line
+
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text", "search"}
@@ -124,6 +126,12 @@ class Track:
     artist: str = ""
     direct_url: str = ""
     duration_ms: int = 0
+    bpm: int = 0
+    musical_key: str = ""
+    camelot: str = ""
+    genre: str = ""
+    mix_name: str = ""
+    analysis_source: str = ""
 
     @property
     def label(self) -> str:
@@ -136,6 +144,61 @@ class Track:
         if self.artist:
             return f"{self.artist} - {self.title}"
         return self.title
+
+
+def _optional_int(value: Any) -> int:
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+    return number if number > 0 else 0
+
+
+def _preview_track_payload(track: Track, existing: bool = False) -> Dict[str, Any]:
+    card = build_dj_card(
+        artist=track.artist,
+        title=track.title,
+        bpm=track.bpm,
+        musical_key=track.musical_key,
+        camelot=track.camelot,
+        genre=track.genre,
+        mix_name=track.mix_name,
+        duration_ms=track.duration_ms,
+        analysis_source=track.analysis_source,
+    )
+    return {
+        "artist": track.artist,
+        "title": track.title,
+        "duration_ms": track.duration_ms,
+        "bpm": track.bpm,
+        "musical_key": track.musical_key,
+        "camelot": track.camelot or card.get("camelot") or "",
+        "genre": track.genre,
+        "mix_name": track.mix_name,
+        "analysis_source": track.analysis_source,
+        "dj_hint": preview_line(card),
+        "stems_useful": list(card.get("stems", {}).get("useful") or []),
+        "existing": existing,
+        "included": True,
+    }
+
+
+def _track_from_prepared_item(item: Dict[str, Any]) -> Optional[Track]:
+    title = str(item.get("title", "")).strip()
+    if not title:
+        return None
+    return Track(
+        title=title,
+        artist=str(item.get("artist", "")).strip(),
+        direct_url=str(item.get("direct_url") or item.get("url") or "").strip(),
+        duration_ms=_optional_int(item.get("duration_ms")),
+        bpm=_optional_int(item.get("bpm")),
+        musical_key=str(item.get("musical_key") or item.get("key") or "").strip(),
+        camelot=str(item.get("camelot") or "").strip(),
+        genre=str(item.get("genre") or "").strip(),
+        mix_name=str(item.get("mix_name") or "").strip(),
+        analysis_source=str(item.get("analysis_source") or "").strip(),
+    )
 
 
 def parse_text_tracks(text: str) -> List[Track]:
@@ -519,7 +582,55 @@ def _beatport_track_from_node(node: Any) -> Optional[Track]:
     mix = str(node.get("mix_name") or "").strip()
     if _should_append_beatport_mix(title, mix):
         title = f"{title} ({mix})"
-    return Track(title=title, artist=", ".join(artists), duration_ms=_beatport_duration_ms(node))
+    musical_key, camelot = _beatport_key_fields(node)
+    return Track(
+        title=title,
+        artist=", ".join(artists),
+        duration_ms=_beatport_duration_ms(node),
+        bpm=_beatport_bpm(node),
+        musical_key=musical_key,
+        camelot=camelot,
+        genre=_beatport_genre(node),
+        mix_name=mix,
+        analysis_source="beatport",
+    )
+
+
+def _beatport_bpm(node: Dict[str, Any]) -> int:
+    value = node.get("bpm")
+    try:
+        bpm = int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+    return bpm if 50 <= bpm <= 220 else 0
+
+
+def _beatport_genre(node: Dict[str, Any]) -> str:
+    for key in ("genre", "genres", "sub_genre", "subgenre"):
+        value = node.get(key)
+        if isinstance(value, dict):
+            name = str(value.get("name") or "").strip()
+            if name:
+                return name
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict) and item.get("name"):
+                    return str(item["name"]).strip()
+                if isinstance(item, str) and item.strip():
+                    return item.strip()
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _beatport_key_fields(node: Dict[str, Any]) -> Tuple[str, str]:
+    raw = node.get("key") or node.get("key_name") or ""
+    if isinstance(raw, dict):
+        name = str(raw.get("name") or raw.get("standard") or raw.get("short_name") or "").strip()
+    else:
+        name = str(raw or "").strip()
+    camelot = camelot_from_key(raw) or camelot_from_key(name)
+    return name, camelot
 
 
 def _should_append_beatport_mix(title: str, mix: str) -> bool:
@@ -723,6 +834,17 @@ def safe_filename(value: str, fallback: str = "audio") -> str:
     return (normalized[:160].rstrip(" .") or fallback)
 
 
+def output_filename_stem(track: Track, payload: Dict[str, Any]) -> str:
+    """Name search downloads from the YouTube video, not the typed query."""
+    if str(payload.get("source", "")).lower() == "search" and track.direct_url:
+        return "%(title)s"
+    if track.artist:
+        return safe_filename(f"{track.artist} - {track.title}")
+    if track.direct_url:
+        return "%(title)s"
+    return safe_filename(track.title)
+
+
 def ffmpeg_path() -> str:
     """Locate the per-platform ffmpeg binary installed by imageio-ffmpeg."""
     try:
@@ -921,16 +1043,13 @@ class DownloadManager:
             "source_url": str(payload.get("url", "")).strip(),
             "total": len(tracks),
             "tracks": [
-                {
-                    "artist": track.artist,
-                    "title": track.title,
-                    "duration_ms": track.duration_ms,
-                    "existing": bool(
+                _preview_track_payload(
+                    track,
+                    existing=bool(
                         output_directory
                         and self.history.find_existing(output_directory, track)
                     ),
-                    "included": True,
-                }
+                )
                 for track in tracks
             ],
         }
@@ -1049,6 +1168,7 @@ class DownloadManager:
             )
             self._log(job_id, f"Saving to {output_directory}")
             saved_paths: List[Path] = []
+            stem_paths: List[Path] = []
             stopped_early = False
             for index, track in enumerate(tracks, start=1):
                 try:
@@ -1078,6 +1198,7 @@ class DownloadManager:
                             "media_id": history_entry["id"],
                         })
                     saved_paths.append(existing_path)
+                    stem_paths.extend(self._write_dj_assets(job_id, existing_path, track, payload))
                     self._log(job_id, f"Already in library: {existing_path.name}")
                     continue
                 try:
@@ -1098,6 +1219,7 @@ class DownloadManager:
                             "media_id": history_entry["id"],
                         })
                     saved_paths.append(saved_path)
+                    stem_paths.extend(self._write_dj_assets(job_id, saved_path, track, payload))
                 except DownloadStopped:
                     stopped_early = True
                     remaining = len(tracks) - index + 1
@@ -1127,6 +1249,13 @@ class DownloadManager:
                 )
                 self._update(job_id, playlist_path=str(playlist_path))
                 self._log(job_id, f"Rekordbox playlist: {playlist_path.name}")
+            if payload.get("rekordbox_playlist") and stem_paths:
+                stem_playlist = self._write_m3u8(
+                    output_directory,
+                    f"{str(payload.get('playlist_name', '')).strip() or 'Rekordbox'} Stems",
+                    stem_paths,
+                )
+                self._log(job_id, f"Rekordbox stem playlist: {stem_playlist.name}")
             result = self.snapshot(job_id)
             remaining = max(
                 0,
@@ -1234,20 +1363,9 @@ class DownloadManager:
             for item in payload["prepared_tracks"][:5000]:
                 if not isinstance(item, dict) or item.get("included") is False:
                     continue
-                title = str(item.get("title", "")).strip()
-                artist = str(item.get("artist", "")).strip()
-                direct_url = str(item.get("direct_url") or item.get("url") or "").strip()
-                try:
-                    duration_ms = int(item.get("duration_ms") or 0)
-                except (TypeError, ValueError):
-                    duration_ms = 0
-                if title:
-                    tracks.append(Track(
-                        title=title,
-                        artist=artist,
-                        direct_url=direct_url,
-                        duration_ms=max(0, duration_ms),
-                    ))
+                track = _track_from_prepared_item(item)
+                if track is not None:
+                    tracks.append(track)
             if not tracks:
                 raise InputError("Select at least one track from the preview.")
             return _unique_tracks(tracks)
@@ -1336,12 +1454,7 @@ class DownloadManager:
         except ImportError as error:
             raise InputError("Download support is still installing. Restart the app and try again.") from error
 
-        if track.artist:
-            filename = safe_filename(f"{track.artist} - {track.title}")
-        elif track.direct_url:
-            filename = "%(title)s"
-        else:
-            filename = safe_filename(track.title)
+        filename = output_filename_stem(track, payload)
         is_youtube_playlist = (
             bool(track.direct_url)
             and str(payload.get("download_type", "single")) == "playlist"
@@ -1373,7 +1486,7 @@ class DownloadManager:
         browser = self._youtube_cookie_browser(payload)
         if browser:
             options["cookiesfrombrowser"] = (browser,)
-        if track.artist:
+        if track.artist and str(payload.get("source", "")).lower() != "search":
             options["postprocessor_args"] = {
                 "FFmpegMetadata": [
                     "-metadata",
@@ -1427,6 +1540,46 @@ class DownloadManager:
         if not url:
             raise InputError("YouTube could not find a matching video for this track.")
         return url
+
+    def _write_dj_assets(
+        self,
+        job_id: str,
+        audio_path: Path,
+        track: Track,
+        payload: Dict[str, Any],
+    ) -> List[Path]:
+        """Write a DJ sidecar and optionally extract Rekordbox-importable stem WAVs."""
+        try:
+            card = prepare_dj_assets(
+                audio_path,
+                artist=track.artist,
+                title=track.title,
+                bpm=track.bpm,
+                musical_key=track.musical_key,
+                camelot=track.camelot,
+                genre=track.genre,
+                mix_name=track.mix_name,
+                duration_ms=track.duration_ms,
+                analysis_source=track.analysis_source,
+                extract_stems=bool(payload.get("extract_suggested_stems")),
+            )
+        except Exception as error:
+            self._log(job_id, f"Could not write DJ sidecar for {track.label}: {error}")
+            return []
+        sidecar = Path(str(card.get("sidecar_path") or ""))
+        if sidecar.is_file():
+            self._log(job_id, f"DJ sidecar: {sidecar.name}")
+        skipped = (card.get("stems") or {}).get("skipped_reason")
+        if skipped:
+            self._log(job_id, skipped)
+        extracted = (card.get("stems") or {}).get("extracted") or {}
+        paths: List[Path] = []
+        for stem, path_value in extracted.items():
+            path = Path(str(path_value))
+            if path.is_file():
+                paths.append(path)
+                self._log(job_id, f"Rekordbox stem WAV ({stem}): {path.name}")
+        return paths
 
     def _write_m3u8(self, directory: Path, name: str, paths: List[Path]) -> Path:
         playlist_name = safe_filename(name or f"Rekordbox {datetime.now():%Y-%m-%d %H%M}")
