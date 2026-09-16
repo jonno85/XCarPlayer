@@ -153,10 +153,26 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
             self.post_json("/api/job/pause", {"id": "missing"})
         self.assertEqual(error.exception.code, 400)
 
+    def test_search_endpoint_returns_youtube_hits(self) -> None:
+        hits = [{
+            "title": "Happy Clappers - I Believe (Original Mix)",
+            "channel": "Ministry Vaults",
+            "duration": 435,
+            "duration_ms": 435000,
+            "duration_label": "7:15",
+            "url": "https://www.youtube.com/watch?v=original",
+        }]
+        with patch("music_downloader_core.search_youtube", return_value=hits) as search:
+            payload = self.post_json("/api/search", {"artist": "Happy Clappers", "title": "I Believe"})
+        self.assertEqual(payload["search"]["query"], "Happy Clappers - I Believe")
+        self.assertEqual(payload["search"]["results"], hits)
+        search.assert_called_once()
+
     def test_frontend_javascript_parses_and_defines_source_handlers(self) -> None:
         app_js = Path(__file__).resolve().parents[1] / "web" / "app.js"
         source = app_js.read_text(encoding="utf-8")
         self.assertIn("async function startDownload(event)", source)
+        self.assertIn("async function searchYouTube()", source)
         self.assertIn('card.addEventListener("click", () => setSource(card.dataset.source))', source)
         result = subprocess.run(["node", "--check", str(app_js)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

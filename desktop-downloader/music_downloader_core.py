@@ -28,7 +28,7 @@ APP_NAME = "Music Library Downloader"
 APP_VERSION = "1.4.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
-SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text"}
+SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text", "search"}
 SUPPORTED_COOKIE_BROWSERS = {"", "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi"}
 SUPPORTED_AUDIO_FORMATS = {"mp3", "m4a", "flac", "wav", "opus"}
 AUDIO_EXTENSIONS = {".mp3", ".m4a", ".flac", ".wav", ".opus", ".ogg", ".aac"}
@@ -639,6 +639,83 @@ def _youtube_result_url(entry: Dict[str, Any]) -> str:
     return url
 
 
+YOUTUBE_MANUAL_SEARCH_RESULTS = 8
+
+
+def _format_clock_duration(seconds: float) -> str:
+    total = int(seconds)
+    if total <= 0:
+        return ""
+    minutes, secs = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def youtube_search_hits(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize yt-dlp search entries into picker rows for the local UI."""
+    hits: List[Dict[str, Any]] = []
+    seen = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        url = _youtube_result_url(entry)
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        duration = entry.get("duration") or 0
+        try:
+            duration = float(duration)
+        except (TypeError, ValueError):
+            duration = 0
+        title = str(entry.get("title") or "YouTube item").strip()
+        hits.append({
+            "title": title,
+            "channel": str(entry.get("uploader") or entry.get("channel") or "").strip(),
+            "duration": int(duration) if duration else 0,
+            "duration_ms": int(duration * 1000) if duration else 0,
+            "duration_label": _format_clock_duration(duration),
+            "url": url,
+        })
+    return hits
+
+
+def search_youtube(query: str, browser: str = "") -> List[Dict[str, Any]]:
+    """Search YouTube for a free-text artist/title query without downloading."""
+    value = " ".join(str(query or "").split()).strip()
+    if not value:
+        raise InputError("Enter a song title or artist to search.")
+    try:
+        import yt_dlp
+    except ImportError as error:
+        raise InputError("Download support is still installing. Restart the app and try again.") from error
+    options: Dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": "in_playlist",
+        "noplaylist": True,
+    }
+    if browser:
+        options["cookiesfrombrowser"] = (browser,)
+    try:
+        with yt_dlp.YoutubeDL(options) as searcher:
+            info = searcher.extract_info(
+                f"ytsearch{YOUTUBE_MANUAL_SEARCH_RESULTS}:{value}",
+                download=False,
+            )
+    except Exception as error:
+        raise InputError("YouTube could not search for this song. Check the query or sign-in option.") from error
+    entries = [
+        entry for entry in (info.get("entries") or [] if isinstance(info, dict) else [])
+        if isinstance(entry, dict)
+    ]
+    hits = youtube_search_hits(entries)
+    if not hits:
+        raise InputError("YouTube did not return any videos for this search.")
+    return hits
+
+
 def safe_filename(value: str, fallback: str = "audio") -> str:
     """Create a cross-platform filename stem from service metadata."""
     normalized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value)
@@ -790,7 +867,7 @@ class DownloadManager:
     def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         source = str(payload.get("source", "")).lower()
         if source not in SUPPORTED_SOURCES:
-            raise InputError("Choose YouTube, Spotify, Beatport, or a text list.")
+            raise InputError("Choose YouTube, Spotify, Beatport, Search, or a text list.")
         audio_format = str(payload.get("audio_format", "mp3")).lower()
         if audio_format not in SUPPORTED_AUDIO_FORMATS:
             raise InputError("Choose MP3, M4A, FLAC, WAV, or Opus.")
@@ -857,6 +934,14 @@ class DownloadManager:
                 for track in tracks
             ],
         }
+
+    def search(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Return YouTube hits for a typed artist/title query so the user can pick one."""
+        artist = str(payload.get("artist", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        query = f"{artist} - {title}" if artist and title else (artist or title)
+        browser = self._youtube_cookie_browser(payload)
+        return {"query": query, "results": search_youtube(query, browser)}
 
     def snapshot(self, job_id: str) -> Dict[str, Any]:
         with self._lock:
@@ -1151,12 +1236,18 @@ class DownloadManager:
                     continue
                 title = str(item.get("title", "")).strip()
                 artist = str(item.get("artist", "")).strip()
+                direct_url = str(item.get("direct_url") or item.get("url") or "").strip()
                 try:
                     duration_ms = int(item.get("duration_ms") or 0)
                 except (TypeError, ValueError):
                     duration_ms = 0
                 if title:
-                    tracks.append(Track(title=title, artist=artist, duration_ms=max(0, duration_ms)))
+                    tracks.append(Track(
+                        title=title,
+                        artist=artist,
+                        direct_url=direct_url,
+                        duration_ms=max(0, duration_ms),
+                    ))
             if not tracks:
                 raise InputError("Select at least one track from the preview.")
             return _unique_tracks(tracks)
@@ -1166,6 +1257,8 @@ class DownloadManager:
                 str(payload.get("tracks", "")),
                 str(payload.get("filename", "")),
             )
+        if source == "search":
+            raise InputError("Search YouTube and choose a result first.")
         url = str(payload.get("url", ""))
         if source == "youtube":
             validate_source_url("youtube", url)

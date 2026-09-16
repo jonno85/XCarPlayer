@@ -67,6 +67,7 @@
       .source-icon { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 6px; border-radius: 8px; font-size: .82rem; vertical-align: middle; }
       .youtube { color: #ce3045; background: #ffebee; } .spotify { color: #168b62; background: #e3f8f1; }
       .beatport { color: #9b671b; background: #fff0dc; } .text { color: #5263c9; background: #eaf0ff; }
+      .search { color: #2f6f9f; background: #e7f3fb; }
       .field { margin-top: 18px; }
       label { display: block; margin-bottom: 7px; font-size: .9rem; font-weight: 750; }
       .helper { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
@@ -106,7 +107,14 @@
       .preview-list { display: grid; gap: 7px; max-height: 350px; overflow: auto; }
       .preview-row { display: grid; grid-template-columns: 25px minmax(100px, .8fr) minmax(130px, 1.2fr) auto; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: white; }
       .preview-row input[type="text"] { padding: 8px; font-size: .82rem; }
-      .preview-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--violet); }
+      .search-hit {
+        display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; width: 100%; padding: 10px 12px;
+        border: 1px solid var(--line); border-radius: 9px; background: white; text-align: left;
+      }
+      .search-hit:hover { border-color: #cfc5fa; background: #fbfaff; }
+      .search-hit.is-selected { border-color: var(--violet); background: #f4f0ff; box-shadow: 0 0 0 3px #6348e61a; }
+      .search-hit strong { grid-column: 1 / -1; font-size: .88rem; }
+      .search-hit small { color: var(--muted); font-size: .75rem; }
       .existing-chip { padding: 4px 7px; border-radius: 20px; color: #276b57; background: #dcf5eb; font-size: .7rem; font-weight: 800; white-space: nowrap; }
       .spotify-import { margin-top: 14px; padding: 13px; border-radius: 10px; background: #f1faf6; }
       .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 24px; color: #445466; font-size: .85rem; }
@@ -192,6 +200,9 @@
             <button class="source-card" type="button" data-source="beatport">
               <strong><span class="source-icon beatport">◆</span>Beatport</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
             </button>
+            <button class="source-card" type="button" data-source="search">
+              <strong><span class="source-icon search">⌕</span><span data-i18n="searchSongs">Search</span></strong><small data-i18n="searchHelp">Type a song and artist, then pick a result</small>
+            </button>
             <button class="source-card" type="button" data-source="text">
               <strong><span class="source-icon text">☰</span><span data-i18n="songList">Song list</span></strong><small data-i18n="textHelp">A .txt file, one song per line</small>
             </button>
@@ -209,22 +220,6 @@
                 <label for="download-type" data-i18n="linkContains">This link contains</label>
                 <select id="download-type"><option value="single" data-i18n="singleItem">One song or video</option><option value="playlist" data-i18n="playlist">A playlist</option></select>
               </div>
-              <details class="credential-box" id="youtube-sign-in">
-                <summary data-i18n="youtubeSignIn">Only if YouTube asks you to sign in</summary>
-                <p data-i18n="youtubeSignInHelp">Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
-                <div class="field">
-                  <label for="youtube-browser" data-i18n="signedBrowser">Signed-in browser</label>
-                  <select id="youtube-browser">
-                    <option value="">None — try without signing in</option>
-                    <option value="chrome">Google Chrome</option>
-                    <option value="edge">Microsoft Edge</option>
-                    <option value="firefox">Mozilla Firefox</option>
-                    <option value="safari">Safari</option>
-                    <option value="brave">Brave</option>
-                    <option value="chromium">Chromium</option>
-                  </select>
-                </div>
-              </details>
               <div class="spotify-import hidden" id="spotify-public-import">
                 <strong data-i18n="spotifyNoLogin">No login, Premium, or app key required</strong>
                 <p class="helper" data-i18n="spotifyPublicHelp">The app reads track names from Spotify’s public page. Private playlists are not available.</p>
@@ -236,6 +231,45 @@
               </div>
               <button class="secondary hidden" id="preview-url-button" type="button" style="margin-top:14px;" data-i18n="previewTracks">Preview tracks</button>
             </div>
+
+            <div id="search-section" class="hidden">
+              <div class="step"><span>2</span> <b data-i18n="searchStep">Search for a song</b></div>
+              <div class="advanced-grid">
+                <div class="field">
+                  <label for="search-artist" data-i18n="artist">Artist</label>
+                  <input id="search-artist" type="text" autocomplete="off" placeholder="Artist" />
+                </div>
+                <div class="field">
+                  <label for="search-title" data-i18n="title">Title</label>
+                  <input id="search-title" type="text" autocomplete="off" placeholder="Song title" />
+                </div>
+              </div>
+              <p class="helper" data-i18n="searchHint">Fill in artist, title, or both, then choose the matching YouTube video.</p>
+              <button class="secondary" id="search-button" type="button" style="margin-top:12px;" data-i18n="searchButton">Search YouTube</button>
+              <section class="preview-panel hidden" id="search-results-panel" style="margin-top:16px;">
+                <div class="preview-heading">
+                  <div><h3 data-i18n="searchResults">Choose a result</h3><p class="helper" id="search-summary"></p></div>
+                </div>
+                <div class="preview-list" id="search-results"></div>
+              </section>
+            </div>
+
+            <details class="credential-box hidden" id="youtube-sign-in">
+              <summary data-i18n="youtubeSignIn">Only if YouTube asks you to sign in</summary>
+              <p data-i18n="youtubeSignInHelp">Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.</p>
+              <div class="field">
+                <label for="youtube-browser" data-i18n="signedBrowser">Signed-in browser</label>
+                <select id="youtube-browser">
+                  <option value="">None — try without signing in</option>
+                  <option value="chrome">Google Chrome</option>
+                  <option value="edge">Microsoft Edge</option>
+                  <option value="firefox">Mozilla Firefox</option>
+                  <option value="safari">Safari</option>
+                  <option value="brave">Brave</option>
+                  <option value="chromium">Chromium</option>
+                </select>
+              </div>
+            </details>
 
             <div id="text-section" class="hidden">
               <div class="step"><span>2</span> <b data-i18n="addList">Add your song list</b></div>

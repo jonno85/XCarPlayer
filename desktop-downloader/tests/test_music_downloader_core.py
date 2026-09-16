@@ -20,6 +20,7 @@ from music_downloader_core import (
     parse_text_tracks,
     safe_filename,
     validate_source_url,
+    youtube_search_hits,
 )
 
 
@@ -517,6 +518,72 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         ])
         self.assertEqual(chosen["webpage_url"], "https://www.youtube.com/watch?v=original")
         self.assertEqual(track.search_query, "Happy Clappers - I Believe (Original Mix)")
+
+    def test_youtube_search_hits_keep_watch_urls_and_duration_labels(self) -> None:
+        hits = youtube_search_hits([
+            {
+                "title": "Happy Clappers - I Believe (Original Mix)",
+                "uploader": "Ministry Vaults",
+                "duration": 435,
+                "webpage_url": "https://www.youtube.com/watch?v=original",
+            },
+            {"title": "Duplicate", "ie_key": "Youtube", "url": "original", "duration": 12},
+            {"title": "Missing url"},
+            {
+                "title": "Radio Edit",
+                "channel": "Official",
+                "duration": 180,
+                "url": "https://www.youtube.com/watch?v=radio",
+            },
+        ])
+        self.assertEqual(
+            [(hit["title"], hit["channel"], hit["duration_label"], hit["url"]) for hit in hits],
+            [
+                (
+                    "Happy Clappers - I Believe (Original Mix)",
+                    "Ministry Vaults",
+                    "7:15",
+                    "https://www.youtube.com/watch?v=original",
+                ),
+                ("Radio Edit", "Official", "3:00", "https://www.youtube.com/watch?v=radio"),
+            ],
+        )
+
+    def test_search_requires_a_song_or_artist(self) -> None:
+        with self.assertRaisesRegex(InputError, "song title or artist"):
+            DownloadManager().search({"artist": "  ", "title": ""})
+
+    def test_search_download_uses_the_chosen_video_url(self) -> None:
+        seen = []
+
+        class FakeDownloadManager(DownloadManager):
+            def _download_track(self, job_id, track, output_directory, payload):
+                seen.append((track.artist, track.title, track.direct_url))
+                path = output_directory / f"{track.artist} - {track.title}.{payload.get('audio_format', 'mp3')}"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = FakeDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "search",
+                "output_dir": str(root / "music"),
+                "rights_confirmed": True,
+                "audio_format": "mp3",
+                "prepared_tracks": [{
+                    "artist": "Happy Clappers",
+                    "title": "I Believe",
+                    "direct_url": "https://www.youtube.com/watch?v=original",
+                    "included": True,
+                }],
+            })
+            job = self._wait_for_job(manager, job["id"])
+            self.assertEqual(job["state"], "complete")
+            self.assertEqual(
+                seen,
+                [("Happy Clappers", "I Believe", "https://www.youtube.com/watch?v=original")],
+            )
 
 
 if __name__ == "__main__":

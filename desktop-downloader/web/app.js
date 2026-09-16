@@ -5,6 +5,7 @@
     source: "youtube", jobId: null, polling: null, working: false,
     language: "en", history: [], queue: [], queueIndex: -1,
     previewTracks: [], previewSource: "", importText: "", importFilename: "",
+    searchResults: [], selectedSearch: null,
   };
   const $ = (selector) => document.querySelector(selector);
   const sourceCards = document.querySelectorAll("[data-source]");
@@ -16,6 +17,12 @@
       pickSource: "Pick your source", whatAdd: "What would you like to add?",
       youtubeHelp: "A song or a playlist link", metadataHelp: "Public track or playlist metadata",
       songList: "Song list", textHelp: "A .txt file, one song per line", pasteLink: "Paste the link",
+      searchSongs: "Search", searchHelp: "Type a song and artist, then pick a result",
+      searchStep: "Search for a song", searchButton: "Search YouTube", searching: "Searching…",
+      searchHint: "Fill in artist, title, or both, then choose the matching YouTube video.",
+      searchResults: "Choose a result", searchFirst: "Search YouTube and choose a result first.",
+      searchNeedQuery: "Enter a song title or artist to search.",
+      searchSummary: "{total} videos · pick one to download",
       linkContains: "This link contains", singleItem: "One song or video", playlist: "A playlist",
       youtubeSignIn: "Only if YouTube asks you to sign in",
       youtubeSignInHelp: "Choose the browser where you are already signed in to YouTube. Its cookies stay on this computer and are only read to complete this download.",
@@ -67,6 +74,12 @@
       pickSource: "Scegli la sorgente", whatAdd: "Cosa vuoi aggiungere?",
       youtubeHelp: "Link a un brano o playlist", metadataHelp: "Metadati di brano o playlist pubblica",
       songList: "Lista brani", textHelp: "File .txt, un brano per riga", pasteLink: "Incolla il link",
+      searchSongs: "Cerca", searchHelp: "Scrivi brano e artista, poi scegli un risultato",
+      searchStep: "Cerca un brano", searchButton: "Cerca su YouTube", searching: "Ricerca…",
+      searchHint: "Inserisci artista, titolo o entrambi, poi scegli il video YouTube corrispondente.",
+      searchResults: "Scegli un risultato", searchFirst: "Cerca su YouTube e scegli prima un risultato.",
+      searchNeedQuery: "Inserisci un titolo o un artista da cercare.",
+      searchSummary: "{total} video · scegline uno da scaricare",
       linkContains: "Questo link contiene", singleItem: "Un brano o video", playlist: "Una playlist",
       youtubeSignIn: "Solo se YouTube richiede l’accesso",
       youtubeSignInHelp: "Scegli il browser in cui hai già effettuato l’accesso a YouTube. I cookie restano su questo computer e vengono letti solo per completare il download.",
@@ -145,25 +158,33 @@
     setWorking(state.working);
     renderHistory();
     if (state.previewTracks.length) renderPreview();
+    if (state.searchResults.length) renderSearchResults();
   }
 
   function setSource(source) {
     state.source = source;
     sourceCards.forEach((card) => card.classList.toggle("is-selected", card.dataset.source === source));
     const isText = source === "text";
-    $("#url-section").classList.toggle("hidden", isText);
+    const isSearch = source === "search";
+    $("#url-section").classList.toggle("hidden", isText || isSearch);
     $("#text-section").classList.toggle("hidden", !isText);
-    if (!isText) {
+    $("#search-section").classList.toggle("hidden", !isSearch);
+    if (!isText && !isSearch) {
       $("#url-label").textContent = t(`${source}Label`);
       $("#source-url").placeholder = source === "youtube" ? "https://www.youtube.com/watch?v=…" : `https://${source === "spotify" ? "open.spotify.com" : "www.beatport.com"}/…`;
       $("#url-helper").textContent = t(source === "youtube" ? "youtubeHint" : "metadataHint");
     }
+    $("#search-artist").placeholder = t("artist");
+    $("#search-title").placeholder = t("title");
     $("#download-type-section").classList.toggle("hidden", source !== "youtube");
-    $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube");
+    $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube" && source !== "search");
     $("#spotify-public-import").classList.toggle("hidden", source !== "spotify");
     $("#preview-url-button").classList.toggle("hidden", source !== "spotify" && source !== "beatport");
     $("#track-preview").classList.toggle(
       "hidden", !state.previewTracks.length || state.previewSource !== source
+    );
+    $("#search-results-panel").classList.toggle(
+      "hidden", !isSearch || !state.searchResults.length
     );
   }
 
@@ -275,6 +296,67 @@
     $("#track-preview").classList.add("hidden");
   }
 
+  function invalidateSearch() {
+    state.searchResults = [];
+    state.selectedSearch = null;
+    $("#search-results-panel").classList.add("hidden");
+    $("#search-results").replaceChildren();
+    $("#search-summary").textContent = "";
+  }
+
+  async function searchYouTube() {
+    const artist = $("#search-artist").value.trim();
+    const title = $("#search-title").value.trim();
+    if (!artist && !title) return message(t("searchNeedQuery"), "error");
+    const button = $("#search-button");
+    button.disabled = true;
+    button.textContent = t("searching");
+    try {
+      const { search } = await request("/api/search", {
+        method: "POST",
+        body: JSON.stringify({
+          artist,
+          title,
+          youtube_browser: $("#youtube-browser").value,
+        }),
+      });
+      state.searchResults = search.results || [];
+      state.selectedSearch = state.searchResults[0] || null;
+      renderSearchResults();
+    } catch (error) {
+      invalidateSearch();
+      message(error.message, "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = t("searchButton");
+    }
+  }
+
+  function renderSearchResults() {
+    const panel = $("#search-results-panel");
+    const list = $("#search-results");
+    list.replaceChildren();
+    $("#search-summary").textContent = t("searchSummary").replace("{total}", state.searchResults.length);
+    state.searchResults.forEach((hit) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "search-hit" + (state.selectedSearch === hit ? " is-selected" : "");
+      const heading = document.createElement("strong");
+      heading.textContent = hit.title || "YouTube item";
+      const channel = document.createElement("small");
+      channel.textContent = hit.channel || "";
+      const duration = document.createElement("small");
+      duration.textContent = hit.duration_label || "";
+      row.append(heading, channel, duration);
+      row.addEventListener("click", () => {
+        state.selectedSearch = hit;
+        renderSearchResults();
+      });
+      list.appendChild(row);
+    });
+    panel.classList.toggle("hidden", !state.searchResults.length || state.source !== "search");
+  }
+
   function renderJob(job) {
     $("#status-panel").classList.add("is-visible");
     const completed = Number(job.completed || 0);
@@ -350,11 +432,20 @@
     if ((state.source === "spotify" || state.source === "beatport") && (
       state.previewSource !== state.source || !state.previewTracks.length
     )) return message(t("previewFirst"), "error");
+    if (state.source === "search" && !state.selectedSearch) return message(t("searchFirst"), "error");
+    const artist = $("#search-artist").value.trim();
+    const title = $("#search-title").value.trim();
     const payload = {
       source: state.source, output_dir: outputDir, rights_confirmed: true,
       url: $("#source-url").value.trim(), tracks: $("#song-list").value,
       download_type: $("#download-type").value, youtube_browser: $("#youtube-browser").value,
-      prepared_tracks: state.previewSource === state.source ? state.previewTracks : undefined,
+      prepared_tracks: state.source === "search" && state.selectedSearch ? [{
+        artist: artist || state.selectedSearch.channel,
+        title: title || state.selectedSearch.title,
+        direct_url: state.selectedSearch.url,
+        duration_ms: state.selectedSearch.duration_ms,
+        included: true,
+      }] : (state.previewSource === state.source ? state.previewTracks : undefined),
       audio_format: $("#audio-format").value,
       rekordbox_playlist: $("#rekordbox-playlist").checked,
       playlist_name: $("#playlist-name").value.trim(),
@@ -533,6 +624,15 @@
     $("#preview-text-button").addEventListener("click", () => previewTracks(
       "text", $("#song-list").value, state.importFilename
     ));
+    $("#search-button").addEventListener("click", searchYouTube);
+    $("#search-artist").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); searchYouTube(); }
+    });
+    $("#search-title").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); searchYouTube(); }
+    });
+    $("#search-artist").addEventListener("input", invalidateSearch);
+    $("#search-title").addEventListener("input", invalidateSearch);
     $("#source-url").addEventListener("input", invalidatePreview);
     $("#select-all-tracks").addEventListener("click", () => {
       const selected = state.previewTracks.some((track) => track.included === false);
