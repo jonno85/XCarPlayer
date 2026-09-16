@@ -69,9 +69,10 @@ _MINOR_TO_CAMELOT = {
 }
 
 _VOCAL_TITLE = re.compile(
-    r"\b(vocal|vocals|acapella|a cappella|feat\.?|ft\.|featuring)\b",
+    r"\b(vocal|vocals|a\s*c+a+p+ellas?|feat\.?|ft\.|featuring)\b",
     re.I,
 )
+_ACAPELLA_TITLE = re.compile(r"\b(?:a\s*c+a+p+ellas?|house-apella)\b", re.I)
 _INSTRUMENTAL_TITLE = re.compile(r"\b(instrumental|inst\.? mix|karaoke)\b", re.I)
 _EXTENDED_TITLE = re.compile(
     r"\b(extended|original mix|club mix|dj mix|dub mix)\b",
@@ -117,6 +118,10 @@ _FILTER_GENRES = ("techno", "tech house", "progressive", "trance", "melodic")
 
 
 Runner = Callable[[List[str]], subprocess.CompletedProcess]
+
+
+class StemExtractError(RuntimeError):
+    """Demucs or FFmpeg could not produce the requested stem WAV."""
 
 
 def camelot_from_key(value: Any) -> str:
@@ -204,7 +209,8 @@ def build_dj_card(
     blob = " ".join(part for part in (title, mix_name, genre) if part)
     vocal_likely = bool(_VOCAL_TITLE.search(blob) or _genre_match(genre, _VOCAL_GENRES))
     instrumental = bool(_INSTRUMENTAL_TITLE.search(blob))
-    extended = bool(_EXTENDED_TITLE.search(blob) or (mix_name and "radio" not in mix_name.casefold()))
+    acapella = _is_acapella(title, mix_name, genre)
+    extended = bool(_EXTENDED_TITLE.search(blob)) and not acapella
     radio = bool(_RADIO_TITLE.search(blob))
     live_set = bool(_SET_TITLE.search(blob) or duration_ms >= 15 * 60 * 1000)
     groove = bool(_genre_match(genre, _GROOVE_GENRES) or extended)
@@ -214,6 +220,10 @@ def build_dj_card(
     if live_set:
         skip.extend(["vocal", "drums"])
         stem_reason = "Long sets are a poor source for isolated stems."
+    elif acapella:
+        useful.append("vocal")
+        skip.append("drums")
+        stem_reason = "This file is already a vocal/acapella; the WAV is a copy for Rekordbox."
     else:
         if vocal_likely and not instrumental:
             useful.append("vocal")
@@ -321,18 +331,27 @@ def extract_suggested_stems(
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="dj-stems-") as temporary:
         work = Path(temporary)
-        result = run([*invocation, "-n", "htdemucs", "-o", str(work), str(audio_path)])
+        command_args = [*invocation, "-n", "htdemucs", "-o", str(work)]
+        if wanted == ["vocal"]:
+            command_args.extend(["--two-stems", "vocals"])
+        command_args.append(str(audio_path))
+        result = run(command_args)
         if getattr(result, "returncode", 1):
-            return {}
+            detail = _one_line_error(getattr(result, "stderr", "") or getattr(result, "stdout", ""))
+            raise StemExtractError(detail or "Demucs exited with an error.")
         extracted: Dict[str, str] = {}
         mapping = {"vocal": "vocals.wav", "drums": "drums.wav"}
         for stem in wanted:
             found = _find_named_wav(work, mapping[stem])
             if found is None:
+                found = _find_named_wav(work, mapping[stem].replace(".wav", ".mp3"))
+            if found is None:
                 continue
             target = destination / f"{stem}.wav"
             shutil.copy2(found, target)
             extracted[stem] = str(target)
+        if not extracted:
+            raise StemExtractError("Demucs finished but did not write vocals.wav or drums.wav.")
         return extracted
 
 
@@ -377,19 +396,22 @@ def prepare_dj_assets(
     skipped = ""
     if extract_stems:
         useful = card["stems"]["useful"]
-        if not useful:
-            skipped = "No vocal or drums stem was marked useful."
-        elif not (stem_command or demucs_command()):
-            skipped = "Demucs is not installed; sidecar hints were still written."
-        else:
-            extracted = extract_suggested_stems(
-                audio_path,
-                useful,
-                runner=stem_runner,
-                command=stem_command,
-            )
-            if not extracted:
-                skipped = "Stem extraction ran but produced no WAV files."
+        try:
+            if not useful:
+                skipped = "No vocal or drums stem was marked useful."
+            elif _is_acapella(title, mix_name, genre):
+                extracted = export_existing_vocal(audio_path)
+            elif not (stem_command or demucs_command()):
+                skipped = "Demucs is not installed; sidecar hints were still written."
+            else:
+                extracted = extract_suggested_stems(
+                    audio_path,
+                    useful,
+                    runner=stem_runner,
+                    command=stem_command,
+                )
+        except StemExtractError as error:
+            skipped = str(error)
     card["stems"]["extracted"] = extracted
     if skipped:
         card["stems"]["skipped_reason"] = skipped
@@ -488,6 +510,55 @@ def _extra_hints(
     elif duration_ms and duration_ms < 3 * 60 * 1000:
         hints.append("Short runtime: expect a tight intro")
     return hints
+
+
+def _is_acapella(title: str, mix_name: str, genre: str) -> bool:
+    blob = " ".join(part for part in (title, mix_name) if part)
+    return bool(_ACAPELLA_TITLE.search(blob))
+
+
+def export_existing_vocal(audio_path: Path) -> Dict[str, str]:
+    """Copy or convert an acapella to a Rekordbox-importable vocal WAV."""
+    destination = stems_directory(audio_path)
+    destination.mkdir(parents=True, exist_ok=True)
+    target = destination / "vocal.wav"
+    if audio_path.suffix.casefold() == ".wav":
+        shutil.copy2(audio_path, target)
+        return {"vocal": str(target)}
+    ffmpeg = _ffmpeg_exe()
+    if not ffmpeg:
+        raise StemExtractError("FFmpeg is needed to write a WAV copy of this acapella.")
+    result = subprocess.run(
+        [ffmpeg, "-y", "-i", str(audio_path), "-vn", "-acodec", "pcm_s16le", str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode or not target.is_file():
+        raise StemExtractError(
+            _one_line_error(result.stderr or result.stdout) or "Could not convert the acapella to WAV."
+        )
+    return {"vocal": str(target)}
+
+
+def _ffmpeg_exe() -> str:
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        return shutil.which("ffmpeg") or ""
+    try:
+        return str(imageio_ffmpeg.get_ffmpeg_exe() or "")
+    except Exception:
+        return shutil.which("ffmpeg") or ""
+
+
+def _one_line_error(text: str) -> str:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    for line in reversed(lines):
+        folded = line.casefold()
+        if "error" in folded or "modulenotfound" in folded:
+            return line[:300]
+    return (lines[-1] if lines else "")[:300]
 
 
 def _genre_match(genre: str, needles: Iterable[str]) -> bool:
