@@ -57,7 +57,7 @@
       chooseTextCsv: "Choose TXT/CSV file", previewTitle: "Check tracks before downloading",
       toggleAll: "Toggle all", previewHelp: "Edit artist/title if needed. Existing files are highlighted and will not be downloaded twice.",
       previewSummary: "{total} tracks · {existing} already in your library", artist: "Artist",
-      title: "Title", previewFirst: "Preview the Spotify playlist before downloading.",
+      title: "Title", previewFirst: "Preview the playlist before downloading.",
       readingTracks: "Reading track list…",
     },
     it: {
@@ -108,7 +108,7 @@
       chooseTextCsv: "Scegli file TXT/CSV", previewTitle: "Controlla i brani prima del download",
       toggleAll: "Seleziona/deseleziona tutti", previewHelp: "Correggi artista o titolo se necessario. I file esistenti sono evidenziati e non verranno scaricati due volte.",
       previewSummary: "{total} brani · {existing} già nella libreria", artist: "Artista",
-      title: "Titolo", previewFirst: "Visualizza l’anteprima della playlist Spotify prima del download.",
+      title: "Titolo", previewFirst: "Visualizza l’anteprima della playlist prima del download.",
       readingTracks: "Lettura elenco brani…",
     },
   };
@@ -161,7 +161,7 @@
     $("#download-type-section").classList.toggle("hidden", source !== "youtube");
     $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube");
     $("#spotify-public-import").classList.toggle("hidden", source !== "spotify");
-    $("#preview-url-button").classList.toggle("hidden", source !== "spotify");
+    $("#preview-url-button").classList.toggle("hidden", source !== "spotify" && source !== "beatport");
     $("#track-preview").classList.toggle(
       "hidden", !state.previewTracks.length || state.previewSource !== source
     );
@@ -347,8 +347,8 @@
     const outputDir = $("#output-directory").value.trim();
     if (!outputDir) return message(t("chooseFolderFirst"), "error");
     if (!$("#rights-confirmed").checked) return message(t("permission"), "error");
-    if (state.source === "spotify" && (
-      state.previewSource !== "spotify" || !state.previewTracks.length
+    if ((state.source === "spotify" || state.source === "beatport") && (
+      state.previewSource !== state.source || !state.previewTracks.length
     )) return message(t("previewFirst"), "error");
     const payload = {
       source: state.source, output_dir: outputDir, rights_confirmed: true,
@@ -529,7 +529,7 @@
     sourceCards.forEach((card) => card.addEventListener("click", () => setSource(card.dataset.source)));
     $("#song-file").addEventListener("change", readSongFile);
     $("#spotify-import-file").addEventListener("change", readSpotifyImport);
-    $("#preview-url-button").addEventListener("click", () => previewTracks("spotify"));
+    $("#preview-url-button").addEventListener("click", () => previewTracks(state.source));
     $("#preview-text-button").addEventListener("click", () => previewTracks(
       "text", $("#song-list").value, state.importFilename
     ));

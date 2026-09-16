@@ -123,6 +123,7 @@ class Track:
     title: str
     artist: str = ""
     direct_url: str = ""
+    duration_ms: int = 0
 
     @property
     def label(self) -> str:
@@ -132,7 +133,9 @@ class Track:
 
     @property
     def search_query(self) -> str:
-        return f"{self.label} official audio"
+        if self.artist:
+            return f"{self.artist} - {self.title}"
+        return self.title
 
 
 def parse_text_tracks(text: str) -> List[Track]:
@@ -374,29 +377,128 @@ def beatport_tracks(url: str) -> List[Track]:
 
 
 def _beatport_tracks_from_data(data: Any) -> List[Track]:
+    """Collect catalog tracks from Beatport page JSON, ignoring related albums."""
+    queries = _beatport_dehydrated_queries(data)
+    tracks: List[Track] = []
+    if queries:
+        for query in queries:
+            if _is_beatport_recommendation_query(query.get("queryKey")):
+                continue
+            tracks.extend(_collect_beatport_tracks(query.get("state", {}).get("data")))
+        if tracks:
+            return tracks
+    return _collect_beatport_tracks(data, skip_recommendations=True)
+
+
+def _beatport_dehydrated_queries(data: Any) -> List[Dict[str, Any]]:
+    if not isinstance(data, dict):
+        return []
+    queries = (
+        data.get("props", {})
+        .get("pageProps", {})
+        .get("dehydratedState", {})
+        .get("queries")
+    )
+    if not isinstance(queries, list):
+        return []
+    return [query for query in queries if isinstance(query, dict)]
+
+
+def _is_beatport_recommendation_query(query_key: Any) -> bool:
+    try:
+        text = json.dumps(query_key).casefold()
+    except (TypeError, ValueError):
+        text = str(query_key or "").casefold()
+    return "recommend" in text
+
+
+def _collect_beatport_tracks(node: Any, skip_recommendations: bool = False) -> List[Track]:
     tracks: List[Track] = []
 
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
-            title = str(node.get("name", "")).strip()
-            artists = node.get("artists")
-            if title and isinstance(artists, list) and artists:
-                names = []
-                for artist in artists:
-                    if isinstance(artist, dict) and artist.get("name"):
-                        names.append(str(artist["name"]).strip())
-                    elif isinstance(artist, str) and artist.strip():
-                        names.append(artist.strip())
-                if names:
-                    tracks.append(Track(title=title, artist=", ".join(names)))
-            for value in node.values():
-                walk(value)
-        elif isinstance(node, list):
-            for value in node:
-                walk(value)
+    def walk(value: Any, path: str = "") -> None:
+        if skip_recommendations and "recommend" in path.casefold():
+            return
+        track = _beatport_track_from_node(value)
+        if track is not None:
+            tracks.append(track)
+            return
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(child, f"{path}.{key}" if path else str(key))
+        elif isinstance(value, list):
+            for child in value:
+                walk(child, path)
 
-    walk(data)
+    walk(node)
     return tracks
+
+
+def _beatport_artist_names(node: Dict[str, Any]) -> List[str]:
+    names: List[str] = []
+    seen = set()
+    for key in ("artists", "remixers"):
+        artists = node.get(key)
+        if not isinstance(artists, list):
+            continue
+        for artist in artists:
+            if isinstance(artist, dict):
+                name = str(artist.get("name") or artist.get("artist_name") or "").strip()
+            elif isinstance(artist, str):
+                name = artist.strip()
+            else:
+                continue
+            folded = name.casefold()
+            if name and folded not in seen:
+                seen.add(folded)
+                names.append(name)
+    return names
+
+
+def _beatport_duration_ms(node: Dict[str, Any]) -> int:
+    for key in ("track_length_ms", "length_ms"):
+        value = node.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+    length = node.get("length")
+    if isinstance(length, (int, float)) and length > 1000:
+        return int(length)
+    if isinstance(length, str) and ":" in length:
+        try:
+            parts = [int(part) for part in length.split(":")]
+        except ValueError:
+            return 0
+        if len(parts) == 2:
+            return (parts[0] * 60 + parts[1]) * 1000
+        if len(parts) == 3:
+            return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000
+    return 0
+
+
+def _beatport_track_from_node(node: Any) -> Optional[Track]:
+    if not isinstance(node, dict):
+        return None
+    if "track_count" in node and "mix_name" not in node:
+        return None
+    artists = _beatport_artist_names(node)
+    title = str(node.get("track_name") or node.get("name") or "").strip()
+    if not title or not artists:
+        return None
+    has_mix = "mix_name" in node
+    has_duration = any(key in node for key in ("length", "length_ms", "track_length_ms"))
+    if not has_mix and not has_duration:
+        return None
+    mix = str(node.get("mix_name") or "").strip()
+    if _should_append_beatport_mix(title, mix):
+        title = f"{title} ({mix})"
+    return Track(title=title, artist=", ".join(artists), duration_ms=_beatport_duration_ms(node))
+
+
+def _should_append_beatport_mix(title: str, mix: str) -> bool:
+    if not mix or mix.casefold() in title.casefold():
+        return False
+    generic_mix = mix.casefold() in {"original mix", "original"}
+    title_already_versioned = re.search(r"\b(mix|remix|edit|rework)\b", title, re.I)
+    return not (generic_mix and title_already_versioned)
 
 
 def _beatport_tracks_from_structured_data(data: Any) -> List[Track]:
@@ -439,6 +541,73 @@ def _unique_tracks(tracks: List[Track]) -> List[Track]:
             seen.add(key)
             unique.append(track)
     return unique
+
+
+YOUTUBE_SEARCH_RESULTS = 5
+_YOUTUBE_LONG_SET_HINTS = (
+    "dj set",
+    "full set",
+    "live at",
+    "live from",
+    "hour mix",
+    "hours mix",
+    "1 hour",
+    "continuous mix",
+    "megamix",
+    "compilation",
+    "karaoke",
+)
+
+
+def _normalized_search_tokens(value: str) -> set:
+    return set(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
+def choose_youtube_result(track: Track, entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Pick the YouTube search hit that best matches the requested mix and length."""
+    scored: List[Tuple[float, Dict[str, Any]]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        scored.append((_youtube_match_score(track, entry), entry))
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+def _youtube_match_score(track: Track, entry: Dict[str, Any]) -> float:
+    video_title = str(entry.get("title") or "")
+    query_tokens = _normalized_search_tokens(track.search_query)
+    title_tokens = _normalized_search_tokens(video_title)
+    score = (len(query_tokens & title_tokens) / len(query_tokens)) if query_tokens else 0.0
+    title_cf = video_title.casefold()
+    if any(hint in title_cf for hint in _YOUTUBE_LONG_SET_HINTS):
+        score -= 0.6
+    duration = entry.get("duration") or 0
+    try:
+        duration = float(duration)
+    except (TypeError, ValueError):
+        duration = 0
+    expected = track.duration_ms / 1000 if track.duration_ms else 0
+    if expected and duration:
+        delta = abs(duration - expected)
+        if delta <= 15:
+            score += 0.5
+        elif delta <= 45:
+            score += 0.25
+        elif duration > expected * 2.5 or (expected < 600 and duration > 900):
+            score -= 0.8
+    elif duration > 900:
+        score -= 0.4
+    return score
+
+
+def _youtube_result_url(entry: Dict[str, Any]) -> str:
+    url = str(entry.get("webpage_url") or entry.get("url") or "").strip()
+    if entry.get("ie_key") == "Youtube" and url and not url.startswith("http"):
+        return f"https://www.youtube.com/watch?v={url}"
+    return url
 
 
 def safe_filename(value: str, fallback: str = "audio") -> str:
@@ -649,6 +818,7 @@ class DownloadManager:
                 {
                     "artist": track.artist,
                     "title": track.title,
+                    "duration_ms": track.duration_ms,
                     "existing": bool(
                         output_directory
                         and self.history.find_existing(output_directory, track)
@@ -952,8 +1122,12 @@ class DownloadManager:
                     continue
                 title = str(item.get("title", "")).strip()
                 artist = str(item.get("artist", "")).strip()
+                try:
+                    duration_ms = int(item.get("duration_ms") or 0)
+                except (TypeError, ValueError):
+                    duration_ms = 0
                 if title:
-                    tracks.append(Track(title=title, artist=artist))
+                    tracks.append(Track(title=title, artist=artist, duration_ms=max(0, duration_ms)))
             if not tracks:
                 raise InputError("Select at least one track from the preview.")
             return _unique_tracks(tracks)
@@ -1086,9 +1260,8 @@ class DownloadManager:
                     f"artist={track.artist}",
                 ]
             }
-        source = track.direct_url or f"ytsearch1:{track.search_query}"
         with yt_dlp.YoutubeDL(options) as downloader:
-            downloader.download([source])
+            downloader.download([self._youtube_source_for_track(track, options)])
         expected_path = output_directory / f"{filename}.{audio_format}"
         if expected_path.is_file():
             return expected_path
@@ -1103,6 +1276,35 @@ class DownloadManager:
         if not candidates:
             raise InputError("The converter finished but the output file could not be found.")
         return candidates[0]
+
+    def _youtube_source_for_track(self, track: Track, options: Dict[str, Any]) -> str:
+        if track.direct_url:
+            return track.direct_url
+        try:
+            import yt_dlp
+        except ImportError as error:
+            raise InputError("Download support is still installing. Restart the app and try again.") from error
+        search_options = dict(options)
+        search_options.pop("postprocessors", None)
+        search_options.pop("progress_hooks", None)
+        search_options["extract_flat"] = "in_playlist"
+        try:
+            with yt_dlp.YoutubeDL(search_options) as searcher:
+                info = searcher.extract_info(
+                    f"ytsearch{YOUTUBE_SEARCH_RESULTS}:{track.search_query}",
+                    download=False,
+                )
+        except Exception as error:
+            raise InputError("YouTube could not find a matching video for this track.") from error
+        entries = [
+            entry for entry in (info.get("entries") or [] if isinstance(info, dict) else [])
+            if isinstance(entry, dict)
+        ]
+        chosen = choose_youtube_result(track, entries)
+        url = _youtube_result_url(chosen) if chosen else ""
+        if not url:
+            raise InputError("YouTube could not find a matching video for this track.")
+        return url
 
     def _write_m3u8(self, directory: Path, name: str, paths: List[Path]) -> Path:
         playlist_name = safe_filename(name or f"Rekordbox {datetime.now():%Y-%m-%d %H%M}")

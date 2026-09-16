@@ -10,7 +10,10 @@ from music_downloader_core import (
     InputError,
     LibraryHistory,
     Track,
+    _beatport_tracks_from_data,
     _spotify_tracks_from_embed_data,
+    _unique_tracks,
+    choose_youtube_result,
     normalized_track_key,
     parse_import_tracks,
     parse_spotify_url,
@@ -343,6 +346,121 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 manager.pause(job["id"])
             with self.assertRaisesRegex(InputError, "already finished"):
                 manager.stop(job["id"])
+
+    def test_beatport_track_page_keeps_the_requested_mix_and_skips_recommendations(self) -> None:
+        data = {
+            "props": {"pageProps": {"dehydratedState": {"queries": [
+                {
+                    "queryKey": ["track-details-16156266"],
+                    "state": {"data": {
+                        "track_id": 16156266,
+                        "track_name": "I Believe",
+                        "mix_name": "Original Mix",
+                        "track_length_ms": 435253,
+                        "artists": [{"name": "Happy Clappers"}],
+                    }},
+                },
+                {
+                    "queryKey": ["track-16156266-recommendations"],
+                    "state": {"data": [{
+                        "track_id": 999,
+                        "track_name": "Unrelated Club Hit",
+                        "mix_name": "Extended Mix",
+                        "track_length_ms": 320000,
+                        "artists": [{"name": "Someone Else"}],
+                    }]},
+                },
+            ]}}}
+        }
+        tracks = _unique_tracks(_beatport_tracks_from_data(data))
+        self.assertEqual(
+            [(track.artist, track.title, track.duration_ms) for track in tracks],
+            [("Happy Clappers", "I Believe (Original Mix)", 435253)],
+        )
+
+    def test_beatport_release_keeps_each_mix_and_ignores_recommended_albums(self) -> None:
+        data = {
+            "props": {"pageProps": {"dehydratedState": {"queries": [
+                {
+                    "queryKey": ["release-3629654"],
+                    "state": {"data": {
+                        "id": 3629654,
+                        "name": "I Believe",
+                        "track_count": 6,
+                        "artists": [{"name": "Happy Clappers"}],
+                    }},
+                },
+                {
+                    "queryKey": ["tracks", {"release_id": 3629654, "per_page": 100, "page": 1}],
+                    "state": {"data": {"results": [
+                        {
+                            "id": 16156270,
+                            "name": "I Believe",
+                            "mix_name": "The Cube Guys Edit 2016",
+                            "length_ms": 322559,
+                            "artists": [{"name": "Happy Clappers"}],
+                        },
+                        {
+                            "id": 16156266,
+                            "name": "I Believe",
+                            "mix_name": "Original Mix",
+                            "length_ms": 435253,
+                            "artists": [{"name": "Happy Clappers"}],
+                        },
+                    ]}},
+                },
+                {
+                    "queryKey": ["release-3629654-recommendations"],
+                    "state": {"data": {"results": [{
+                        "id": 1,
+                        "name": "Patchwork - Extended Mix",
+                        "track_count": 1,
+                        "artists": [{"name": "Carlita"}],
+                    }]}},
+                },
+            ]}}}
+        }
+        tracks = _unique_tracks(_beatport_tracks_from_data(data))
+        self.assertEqual(
+            [(track.artist, track.title) for track in tracks],
+            [
+                ("Happy Clappers", "I Believe (The Cube Guys Edit 2016)"),
+                ("Happy Clappers", "I Believe (Original Mix)"),
+            ],
+        )
+
+    def test_beatport_does_not_append_original_mix_when_title_already_names_the_remix(self) -> None:
+        data = {
+            "id": 19164216,
+            "name": "It's That Time (FISHER Remix - Extended Mix)",
+            "mix_name": "Original Mix",
+            "length_ms": 238179,
+            "artists": [{"name": "Marlon Hoffstadt"}],
+        }
+        tracks = _beatport_tracks_from_data(data)
+        self.assertEqual(tracks[0].title, "It's That Time (FISHER Remix - Extended Mix)")
+
+    def test_youtube_search_prefers_the_matching_mix_over_a_long_set(self) -> None:
+        track = Track(title="I Believe (Original Mix)", artist="Happy Clappers", duration_ms=435000)
+        chosen = choose_youtube_result(track, [
+            {
+                "title": "Happy Clappers I Believe 1 Hour Mix",
+                "duration": 3600,
+                "webpage_url": "https://www.youtube.com/watch?v=hour",
+            },
+            {
+                "title": "Happy Clappers - I Believe (Radio Edit)",
+                "duration": 180,
+                "webpage_url": "https://www.youtube.com/watch?v=radio",
+            },
+            {
+                "title": "Happy Clappers - I Believe (Original Mix)",
+                "duration": 435,
+                "webpage_url": "https://www.youtube.com/watch?v=original",
+            },
+        ])
+        self.assertEqual(chosen["webpage_url"], "https://www.youtube.com/watch?v=original")
+        self.assertEqual(track.search_query, "Happy Clappers - I Believe (Original Mix)")
 
 
 if __name__ == "__main__":
