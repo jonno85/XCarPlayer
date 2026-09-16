@@ -67,8 +67,12 @@ def request_handler(
             request = urlparse(self.path)
             if request.path == "/":
                 self._serve_index()
-            elif request.path == "/app.js":
-                self._serve_asset("app.js", "text/javascript; charset=utf-8")
+            elif request.path.endswith(".js"):
+                asset = Path(request.path).name
+                if asset.endswith(".js") and (WEB_ROOT / asset).is_file():
+                    self._serve_asset(asset, "text/javascript; charset=utf-8")
+                else:
+                    self._send_json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
             elif request.path == "/api/config":
                 self._send_json({"settings": config_store.load()})
             elif request.path == "/api/job":

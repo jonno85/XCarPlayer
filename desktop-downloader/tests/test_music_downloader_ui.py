@@ -62,6 +62,11 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         with urlopen(request, timeout=3) as response:
             return json.load(response)
 
+    def test_download_flow_script_is_served(self) -> None:
+        with urlopen(self.base_url + "/download_flow.js", timeout=3) as response:
+            body = response.read().decode()
+        self.assertIn("shouldStartAfterPaste", body)
+
     def test_config_history_and_scan_endpoints(self) -> None:
         self.assertEqual(self.get_json("/api/config")["settings"]["language"], "it")
         self.assertEqual(self.get_json("/api/history")["entries"][0]["label"], "Artista — Canzone")
@@ -173,14 +178,26 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
         source = app_js.read_text(encoding="utf-8")
         self.assertIn("async function startDownload(event)", source)
         self.assertIn("async function searchYouTube()", source)
-        self.assertIn("state.selectedSearch.title", source)
+        self.assertIn("flow.preparedTracksForPayload(state, url)", source)
+        self.assertIn("download_flow.js", (app_js.with_name("index.html")).read_text(encoding="utf-8"))
+        self.assertNotRegex(source, r'return message\(t\("previewFirst"\)')
+        self.assertIn("queueOrStartPastedUrl", source)
+        flow_source = app_js.with_name("download_flow.js").read_text(encoding="utf-8")
+        self.assertIn("state.selectedSearch.title", flow_source)
         self.assertNotRegex(
             source,
             r"prepared_tracks:[\s\S]*artist: artist \|\| state\.selectedSearch\.channel",
         )
         self.assertIn('card.addEventListener("click", () => setSource(card.dataset.source))', source)
-        result = subprocess.run(["node", "--check", str(app_js)], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for script in (app_js, app_js.with_name("download_flow.js")):
+            result = subprocess.run(["node", "--check", str(script)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        flow_test = subprocess.run(
+            ["node", str(Path(__file__).with_name("test_download_flow.js"))],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(flow_test.returncode, 0, flow_test.stderr or flow_test.stdout)
 
 
 if __name__ == "__main__":

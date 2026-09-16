@@ -1,11 +1,13 @@
 (() => {
   "use strict";
 
+  const flow = globalThis.DownloadFlow;
   const state = {
     source: "youtube", jobId: null, polling: null, working: false,
     language: "en", history: [], queue: [], queueIndex: -1,
-    previewTracks: [], previewSource: "", importText: "", importFilename: "",
+    previewTracks: [], previewSource: "", previewUrl: "", importText: "", importFilename: "",
     searchResults: [], selectedSearch: null,
+    lastJobFinished: false, pendingUrl: "",
   };
   const $ = (selector) => document.querySelector(selector);
   const sourceCards = document.querySelectorAll("[data-source]");
@@ -67,6 +69,8 @@
       toggleAll: "Toggle all", previewHelp: "Edit artist/title if needed. Camelot, FX, and stem hints come from Beatport or the title. Existing files are highlighted and will not be downloaded twice.",
       previewSummary: "{total} tracks · {existing} already in your library", artist: "Artist",
       title: "Title", previewFirst: "Preview the playlist before downloading.",
+      alreadyDownloading: "A download is already in progress.",
+      queuedNext: "This playlist will start when the current download finishes.",
       readingTracks: "Reading track list…",
     },
     it: {
@@ -126,6 +130,8 @@
       toggleAll: "Seleziona/deseleziona tutti", previewHelp: "Correggi artista o titolo se necessario. Camelot, FX e stem arrivano da Beatport o dal titolo. I file esistenti sono evidenziati e non verranno scaricati due volte.",
       previewSummary: "{total} brani · {existing} già nella libreria", artist: "Artista",
       title: "Titolo", previewFirst: "Visualizza l’anteprima della playlist prima del download.",
+      alreadyDownloading: "Un download è già in corso.",
+      queuedNext: "Questa playlist partirà al termine del download in corso.",
       readingTracks: "Lettura elenco brani…",
     },
   };
@@ -245,6 +251,9 @@
         }),
       });
       state.previewSource = mode === "spotify-import" ? "spotify" : mode;
+      state.previewUrl = mode === "text" || mode === "spotify-import"
+        ? filename
+        : $("#source-url").value.trim();
       state.previewTracks = preview.tracks;
       renderPreview();
     } catch (error) {
@@ -303,7 +312,35 @@
   function invalidatePreview() {
     state.previewTracks = [];
     state.previewSource = "";
+    state.previewUrl = "";
     $("#track-preview").classList.add("hidden");
+  }
+
+  function applyPastedUrl(url) {
+    const detected = flow.detectSourceFromUrl(url);
+    if (detected && detected !== state.source) setSource(detected);
+    if (detected === "youtube" && flow.isYoutubePlaylistUrl(url)) {
+      $("#download-type").value = "playlist";
+    }
+  }
+
+  function queueOrStartPastedUrl(url) {
+    if (!url || !flow.detectSourceFromUrl(url)) return;
+    applyPastedUrl(url);
+    if (state.source === "text" || state.source === "search") return;
+    if (state.working) {
+      state.pendingUrl = url;
+      message(t("queuedNext"));
+      return;
+    }
+    if (flow.shouldStartAfterPaste({
+      working: state.working,
+      lastJobFinished: state.lastJobFinished,
+      outputDir: $("#output-directory").value.trim(),
+      rightsConfirmed: $("#rights-confirmed").checked,
+    })) {
+      startDownload();
+    }
   }
 
   function invalidateSearch() {
@@ -401,18 +438,29 @@
     }
     if (finished) {
       setWorking(false);
+      state.lastJobFinished = true;
       window.clearInterval(state.polling);
       state.polling = null;
       loadHistory();
+      const nextUrl = state.pendingUrl;
+      if (nextUrl) {
+        state.pendingUrl = "";
+        $("#source-url").value = nextUrl;
+        applyPastedUrl(nextUrl);
+        startDownload();
+      }
     }
   }
 
   async function pollJob() {
     if (!state.jobId) return;
+    const requestedId = state.jobId;
     try {
-      const { job } = await request(`/api/job?id=${encodeURIComponent(state.jobId)}`);
+      const { job } = await request(`/api/job?id=${encodeURIComponent(requestedId)}`);
+      if (state.jobId !== requestedId || flow.shouldIgnoreJobSnapshot(job, state.jobId)) return;
       renderJob(job);
     } catch (error) {
+      if (state.jobId !== requestedId) return;
       window.clearInterval(state.polling);
       state.polling = null;
       setWorking(false);
@@ -434,31 +482,26 @@
   }
 
   async function startDownload(event) {
-    event.preventDefault();
-    if (state.working) return;
+    if (event) event.preventDefault();
+    if (state.working) return message(t("alreadyDownloading"));
     const outputDir = $("#output-directory").value.trim();
     if (!outputDir) return message(t("chooseFolderFirst"), "error");
     if (!$("#rights-confirmed").checked) return message(t("permission"), "error");
-    if ((state.source === "spotify" || state.source === "beatport") && (
-      state.previewSource !== state.source || !state.previewTracks.length
-    )) return message(t("previewFirst"), "error");
     if (state.source === "search" && !state.selectedSearch) return message(t("searchFirst"), "error");
+    const url = $("#source-url").value.trim();
     const payload = {
       source: state.source, output_dir: outputDir, rights_confirmed: true,
-      url: $("#source-url").value.trim(), tracks: $("#song-list").value,
+      url, tracks: $("#song-list").value,
       download_type: $("#download-type").value, youtube_browser: $("#youtube-browser").value,
-      prepared_tracks: state.source === "search" && state.selectedSearch ? [{
-        title: state.selectedSearch.title,
-        direct_url: state.selectedSearch.url,
-        duration_ms: state.selectedSearch.duration_ms,
-        included: true,
-      }] : (state.previewSource === state.source ? state.previewTracks : undefined),
+      prepared_tracks: flow.preparedTracksForPayload(state, url),
       audio_format: $("#audio-format").value,
       rekordbox_playlist: $("#rekordbox-playlist").checked,
       extract_suggested_stems: $("#extract-suggested-stems").checked,
       playlist_name: $("#playlist-name").value.trim(),
     };
     setWorking(true);
+    const resumePaste = state.lastJobFinished;
+    state.lastJobFinished = false;
     $("#status-panel").classList.add("is-visible");
     try {
       const { job } = await request("/api/download", { method: "POST", body: JSON.stringify(payload) });
@@ -468,6 +511,7 @@
       pollJob();
     } catch (error) {
       setWorking(false);
+      state.lastJobFinished = resumePaste;
       message(error.message, "error");
     }
   }
@@ -642,6 +686,13 @@
     $("#search-artist").addEventListener("input", invalidateSearch);
     $("#search-title").addEventListener("input", invalidateSearch);
     $("#source-url").addEventListener("input", invalidatePreview);
+    $("#source-url").addEventListener("change", invalidatePreview);
+    $("#source-url").addEventListener("paste", (event) => {
+      const pasted = String(event.clipboardData ? event.clipboardData.getData("text") : "").trim();
+      window.setTimeout(() => {
+        queueOrStartPastedUrl(($("#source-url").value.trim() || pasted));
+      }, 0);
+    });
     $("#select-all-tracks").addEventListener("click", () => {
       const selected = state.previewTracks.some((track) => track.included === false);
       state.previewTracks.forEach((track) => { track.included = selected; });
