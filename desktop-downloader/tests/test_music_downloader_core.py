@@ -73,6 +73,62 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             "Artista — Canzone",
         )
 
+    def test_spotify_embed_keeps_mix_titles_duration_and_cleans_artists(self) -> None:
+        data = {
+            "props": {"pageProps": {"state": {"data": {"entity": {
+                "trackList": [
+                    {
+                        "title": "Ghetto Boy - Extended Mix",
+                        "subtitle": "Sebb Junior",
+                        "duration": 346890,
+                    },
+                    {
+                        "title": "It's a House Thing - Full Intention Remix",
+                        "subtitle": "Funkatomic,\xa0Full Intention",
+                        "duration": 405245,
+                    },
+                ]
+            }}}}}
+        }
+        tracks = _spotify_tracks_from_embed_data(data, "playlist")
+        self.assertEqual(
+            [(track.artist, track.title, track.duration_ms) for track in tracks],
+            [
+                ("Sebb Junior", "Ghetto Boy - Extended Mix", 346890),
+                ("Funkatomic, Full Intention", "It's a House Thing - Full Intention Remix", 405245),
+            ],
+        )
+        chosen = choose_youtube_result(tracks[0], [
+            {
+                "title": "Sebb Junior - Ghetto Boy (Radio Edit)",
+                "duration": 180,
+                "webpage_url": "https://www.youtube.com/watch?v=radio",
+            },
+            {
+                "title": "Sebb Junior - Ghetto Boy (Extended Mix)",
+                "duration": 347,
+                "webpage_url": "https://www.youtube.com/watch?v=extended",
+            },
+            {
+                "title": "Sebb Junior Ghetto Boy 1 Hour Mix",
+                "duration": 3600,
+                "webpage_url": "https://www.youtube.com/watch?v=hour",
+            },
+        ])
+        self.assertEqual(chosen["webpage_url"], "https://www.youtube.com/watch?v=extended")
+
+    def test_spotify_public_embed_track_keeps_duration(self) -> None:
+        data = {
+            "props": {"pageProps": {"state": {"data": {"entity": {
+                "type": "track",
+                "title": "Blinding Lights",
+                "duration": 200040,
+                "artists": [{"name": "The Weeknd"}],
+            }}}}}
+        }
+        track = _spotify_tracks_from_embed_data(data, "track")[0]
+        self.assertEqual((track.artist, track.title, track.duration_ms), ("The Weeknd", "Blinding Lights", 200040))
+
     def test_exporter_csv_artist_and_title_columns_are_detected(self) -> None:
         tracks = parse_import_tracks(
             'Track Name,Artist Name(s),Album\n"Canzone","Artista","Album A"\n',

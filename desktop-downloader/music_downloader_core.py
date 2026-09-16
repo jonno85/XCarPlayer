@@ -285,6 +285,30 @@ def spotify_tracks(url: str) -> List[Track]:
     ) from last_error
 
 
+def _spotify_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").replace("\xa0", " ")).strip()
+
+
+def _spotify_artist_names(node: Dict[str, Any]) -> str:
+    artists = node.get("artists") or []
+    names = [
+        _spotify_text(value.get("name"))
+        for value in artists
+        if isinstance(value, dict) and value.get("name")
+    ]
+    if names:
+        return ", ".join(names)
+    return _spotify_text(node.get("subtitle"))
+
+
+def _spotify_duration_ms(node: Dict[str, Any]) -> int:
+    for key in ("duration", "duration_ms", "durationMs"):
+        value = node.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+    return 0
+
+
 def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> List[Track]:
     """Handle the current Spotify embed payload and its previous playlist shape."""
     try:
@@ -292,21 +316,20 @@ def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> Lis
     except (KeyError, TypeError):
         entity = {}
     if item_type == "track" and isinstance(entity, dict):
-        title = str(entity.get("title") or entity.get("name") or "").strip()
-        artists = entity.get("artists") or []
-        artist = ", ".join(
-            str(value.get("name", "")).strip()
-            for value in artists
-            if isinstance(value, dict) and value.get("name")
-        )
+        title = _spotify_text(entity.get("title") or entity.get("name"))
+        artist = _spotify_artist_names(entity)
         if title:
-            return [Track(title=title, artist=artist)]
+            return [Track(title=title, artist=artist, duration_ms=_spotify_duration_ms(entity))]
 
     track_list = entity.get("trackList", []) if isinstance(entity, dict) else []
     tracks = [
-        Track(title=str(item.get("title", "")).strip(), artist=str(item.get("subtitle", "")).strip())
+        Track(
+            title=_spotify_text(item.get("title")),
+            artist=_spotify_artist_names(item),
+            duration_ms=_spotify_duration_ms(item),
+        )
         for item in track_list
-        if isinstance(item, dict) and item.get("title")
+        if isinstance(item, dict) and _spotify_text(item.get("title"))
     ]
     if tracks:
         return tracks
@@ -315,18 +338,24 @@ def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> Lis
         items = data["props"]["pageProps"]["componentProps"]["tracks"]["items"]
     except (KeyError, TypeError):
         return []
-    return [
-        Track(
-            title=str(item["track"]["name"]).strip(),
-            artist=", ".join(
-                str(artist.get("name", "")).strip()
-                for artist in item["track"].get("artists", [])
-                if artist.get("name")
-            ),
+    parsed = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        track = item.get("track") or item
+        if not isinstance(track, dict):
+            continue
+        title = _spotify_text(track.get("name") or track.get("title"))
+        if not title:
+            continue
+        parsed.append(
+            Track(
+                title=title,
+                artist=_spotify_artist_names(track),
+                duration_ms=_spotify_duration_ms(track),
+            )
         )
-        for item in items
-        if isinstance(item, dict) and item.get("track", {}).get("name")
-    ]
+    return parsed
 
 
 def beatport_tracks(url: str) -> List[Track]:
