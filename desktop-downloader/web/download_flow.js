@@ -28,6 +28,7 @@ function preparedTracksForPayload(state, url) {
       title: state.selectedSearch.title,
       direct_url: state.selectedSearch.url,
       duration_ms: state.selectedSearch.duration_ms,
+      released_at: state.selectedSearch.released_at,
       included: true,
     }];
   }

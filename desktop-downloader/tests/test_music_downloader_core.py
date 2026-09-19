@@ -2,6 +2,7 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from music_downloader_core import (
@@ -14,13 +15,20 @@ from music_downloader_core import (
     _spotify_tracks_from_embed_data,
     _unique_tracks,
     choose_youtube_result,
+    crate_datetime,
+    ffmpeg_metadata_args,
     normalized_track_key,
     output_filename_stem,
     parse_import_tracks,
+    parse_provider_datetime,
     parse_spotify_url,
     parse_text_tracks,
+    playlist_crate_directory,
+    rekordbox_file_tags,
+    release_date_text,
     safe_filename,
     validate_source_url,
+    year_month_save_directory,
     youtube_search_hits,
 )
 
@@ -51,15 +59,15 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         data = {
             "props": {"pageProps": {"state": {"data": {"entity": {
                 "trackList": [
-                    {"title": "Canzone", "subtitle": "Artista"},
+                    {"title": "Canzone", "subtitle": "Artista", "album": {"release_date": "2025-03-09"}},
                     {"title": "Second Song", "subtitle": "Other Artist"},
                 ]
             }}}}}
         }
         tracks = _spotify_tracks_from_embed_data(data, "playlist")
         self.assertEqual(
-            [(track.artist, track.title) for track in tracks],
-            [("Artista", "Canzone"), ("Other Artist", "Second Song")],
+            [(track.artist, track.title, track.released_at) for track in tracks],
+            [("Artista", "Canzone", "2025-03-09"), ("Other Artist", "Second Song", "")],
         )
 
     def test_spotify_public_embed_track_is_parsed_without_credentials(self) -> None:
@@ -68,12 +76,14 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                 "type": "track",
                 "title": "Canzone",
                 "artists": [{"name": "Artista"}],
+                "releaseDate": "2024-11-22",
             }}}}}
         }
         self.assertEqual(
             _spotify_tracks_from_embed_data(data, "track")[0].label,
             "Artista — Canzone",
         )
+        self.assertEqual(_spotify_tracks_from_embed_data(data, "track")[0].released_at, "2024-11-22")
 
     def test_spotify_embed_keeps_mix_titles_duration_and_cleans_artists(self) -> None:
         data = {
@@ -133,10 +143,13 @@ class MusicDownloaderCoreTests(unittest.TestCase):
 
     def test_exporter_csv_artist_and_title_columns_are_detected(self) -> None:
         tracks = parse_import_tracks(
-            'Track Name,Artist Name(s),Album\n"Canzone","Artista","Album A"\n',
+            'Track Name,Artist Name(s),Album,Release Date\n"Canzone","Artista","Album A","2025-03-09"\n',
             "playlist.csv",
         )
-        self.assertEqual([(track.artist, track.title) for track in tracks], [("Artista", "Canzone")])
+        self.assertEqual(
+            [(track.artist, track.title, track.released_at) for track in tracks],
+            [("Artista", "Canzone", "2025-03-09")],
+        )
 
     def test_source_validation_rejects_a_link_from_another_provider(self) -> None:
         with self.assertRaisesRegex(InputError, "valid YouTube"):
@@ -205,6 +218,73 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual(history.scan(root)["tracked"], 1)
             self.assertEqual(history.find_existing(root, Track(title="Song", artist="Artist")), audio)
 
+    def test_history_finds_existing_audio_in_year_month_subfolders(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            nested = root / "2025" / "03"
+            nested.mkdir(parents=True)
+            audio = nested / "Artist - Song.mp3"
+            audio.write_bytes(b"test audio")
+            history = LibraryHistory(root / "history.json")
+            self.assertEqual(
+                history.find_existing(root, Track(title="Song", artist="Artist")),
+                audio,
+            )
+
+    def test_year_month_save_directory_uses_fixed_local_date(self) -> None:
+        root = Path("/library")
+        self.assertEqual(year_month_save_directory(root, False), root)
+        self.assertEqual(
+            year_month_save_directory(root, True, datetime(2025, 3, 9, 12, 0, 0)),
+            root / "2025" / "03",
+        )
+
+    def test_provider_dates_parse_common_spotify_beatport_and_youtube_shapes(self) -> None:
+        self.assertEqual(parse_provider_datetime("2025-03-09").month, 3)
+        self.assertEqual(parse_provider_datetime("2025-03").month, 3)
+        self.assertEqual(parse_provider_datetime("20250309").day, 9)
+        self.assertEqual(parse_provider_datetime("2025").month, 1)
+        self.assertEqual(release_date_text({"album": {"release_date": "2024-11-22"}}), "2024-11-22")
+        self.assertEqual(release_date_text({"publish_date": "2016-05-20"}), "2016-05-20")
+        self.assertEqual(release_date_text({"upload_date": "20260518"}), "2026-05-18")
+        fallback = datetime(2026, 9, 19)
+        self.assertEqual(crate_datetime(Track(title="A", released_at="2025-03-09"), fallback).month, 3)
+        self.assertEqual(crate_datetime(Track(title="B"), fallback), fallback)
+        music = Path("/library")
+        shared = [
+            music / "2025" / "03" / "A.mp3",
+            music / "2025" / "03" / "B.mp3",
+        ]
+        mixed = [music / "2025" / "03" / "A.mp3", music / "2026" / "05" / "B.mp3"]
+        self.assertEqual(playlist_crate_directory(music, True, shared, fallback), music / "2025" / "03")
+        self.assertEqual(playlist_crate_directory(music, True, mixed, fallback), music / "2026" / "09")
+
+    def test_rekordbox_file_tags_use_playlist_genre_and_crate(self) -> None:
+        tags = rekordbox_file_tags(
+            Track(title="Song", artist="Artist", genre="House", released_at="2025-03-09"),
+            {"playlist_name": "Peak Time", "crate": "2026-05", "source": "beatport"},
+        )
+        self.assertEqual(tags["title"], "Song")
+        self.assertEqual(tags["artist"], "Artist")
+        self.assertEqual(tags["genre"], "House")
+        self.assertEqual(tags["grouping"], "Peak Time")
+        self.assertEqual(tags["comment"], "Peak Time | 2026-05")
+        self.assertEqual(tags["date"], "2025")
+        self.assertEqual(
+            ffmpeg_metadata_args({"genre": "House", "grouping": "Peak Time"}),
+            ["-metadata", "genre=House", "-metadata", "grouping=Peak Time"],
+        )
+
+    def test_rekordbox_file_tags_skip_title_override_for_search(self) -> None:
+        tags = rekordbox_file_tags(
+            Track(title="Typed", artist="Query", genre="Techno"),
+            {"source": "search", "playlist_name": "Crate"},
+        )
+        self.assertNotIn("title", tags)
+        self.assertNotIn("artist", tags)
+        self.assertEqual(tags["genre"], "Techno")
+        self.assertEqual(tags["grouping"], "Crate")
+
     def test_rekordbox_playlist_uses_relative_utf8_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -254,6 +334,138 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual((second["completed"], second["existing"]), (0, 1))
             self.assertEqual(second["items"][0]["status"], "existing")
 
+    def test_year_month_folders_save_playlist_under_dated_path(self) -> None:
+        class FakeDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="Song", artist="Artist")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                path = output_directory / f"Artist - Song.{payload['audio_format']}"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            music = root / "music"
+            manager = FakeDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "Artist - Song",
+                "output_dir": str(music),
+                "rights_confirmed": True,
+                "audio_format": "mp3",
+                "rekordbox_playlist": True,
+                "year_month_folders": True,
+                "playlist_name": "March Crate",
+            })
+            job = self._wait_for_job(manager, job["id"])
+            self.assertEqual(job["state"], "complete")
+            save_directory = Path(job["output_dir"])
+            self.assertRegex(save_directory.resolve().relative_to(music.resolve()).as_posix(), r"^\d{4}/\d{2}$")
+            self.assertTrue((save_directory / "Artist - Song.mp3").is_file())
+            playlist = save_directory / "March Crate.m3u8"
+            self.assertTrue(playlist.is_file())
+            self.assertIn("Artist - Song.mp3", playlist.read_text(encoding="utf-8-sig"))
+
+    def test_year_month_folders_reuse_track_already_saved_in_another_month(self) -> None:
+        class FakeDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="Song", artist="Artist")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                raise AssertionError("Should not download a track already in the library")
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            music = root / "music"
+            existing_dir = music / "2025" / "03"
+            existing_dir.mkdir(parents=True)
+            (existing_dir / "Artist - Song.mp3").write_bytes(b"audio")
+            manager = FakeDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "Artist - Song",
+                "output_dir": str(music),
+                "rights_confirmed": True,
+                "audio_format": "mp3",
+                "rekordbox_playlist": True,
+                "year_month_folders": True,
+                "playlist_name": "New Month",
+            })
+            job = self._wait_for_job(manager, job["id"])
+            self.assertEqual((job["completed"], job["existing"]), (0, 1))
+            self.assertEqual(Path(job["output_dir"]).resolve(), existing_dir.resolve())
+            playlist = existing_dir / "New Month.m3u8"
+            self.assertTrue(playlist.is_file())
+            self.assertEqual(playlist.read_text(encoding="utf-8-sig"), "#EXTM3U\nArtist - Song.mp3\n")
+
+    def test_year_month_folders_use_provider_release_date(self) -> None:
+        class FakeDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [Track(title="Song", artist="Artist", released_at="2025-03-14")]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                path = output_directory / "Artist - Song.mp3"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            music = root / "music"
+            manager = FakeDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "Artist - Song",
+                "output_dir": str(music),
+                "rights_confirmed": True,
+                "audio_format": "mp3",
+                "rekordbox_playlist": True,
+                "year_month_folders": True,
+                "playlist_name": "March Crate",
+            })
+            job = self._wait_for_job(manager, job["id"])
+            expected = music / "2025" / "03"
+            self.assertEqual(Path(job["output_dir"]).resolve(), expected.resolve())
+            self.assertTrue((expected / "Artist - Song.mp3").is_file())
+            self.assertTrue((expected / "March Crate.m3u8").is_file())
+
+    def test_year_month_folders_split_tracks_and_keep_playlist_in_today(self) -> None:
+        class FakeDownloadManager(DownloadManager):
+            def _tracks_for_payload(self, payload, allow_prepared=True):
+                return [
+                    Track(title="One", artist="A", released_at="2025-03-01"),
+                    Track(title="Two", artist="B", released_at="2026-05-20"),
+                ]
+
+            def _download_track(self, job_id, track, output_directory, payload):
+                path = output_directory / f"{track.artist} - {track.title}.mp3"
+                path.write_bytes(b"audio")
+                return path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            music = root / "music"
+            manager = FakeDownloadManager(LibraryHistory(root / "history.json"))
+            job = manager.create({
+                "source": "text",
+                "tracks": "A - One\nB - Two",
+                "output_dir": str(music),
+                "rights_confirmed": True,
+                "audio_format": "mp3",
+                "rekordbox_playlist": True,
+                "year_month_folders": True,
+                "playlist_name": "Mixed",
+            })
+            job = self._wait_for_job(manager, job["id"])
+            self.assertTrue((music / "2025" / "03" / "A - One.mp3").is_file())
+            self.assertTrue((music / "2026" / "05" / "B - Two.mp3").is_file())
+            today = datetime.now()
+            playlist_dir = Path(job["output_dir"])
+            self.assertEqual(playlist_dir, music / f"{today:%Y}" / f"{today:%m}")
+            contents = (playlist_dir / "Mixed.m3u8").read_text(encoding="utf-8-sig")
+            self.assertIn("2025/03/A - One.mp3", contents)
+            self.assertIn("2026/05/B - Two.mp3", contents)
+
     def _wait_for_job(self, manager: DownloadManager, job_id: str) -> dict:
         for _ in range(400):
             job = manager.snapshot(job_id)
@@ -283,6 +495,18 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             self.assertEqual(
                 [track["existing"] for track in preview["tracks"]],
                 [True, False],
+            )
+            nested = root / "2026" / "05"
+            nested.mkdir(parents=True)
+            (nested / "Other - New.mp3").write_bytes(b"audio")
+            nested_preview = manager.preview({
+                "source": "text",
+                "tracks": "Artist - Song\nOther - New",
+                "output_dir": str(root),
+            })
+            self.assertEqual(
+                [track["existing"] for track in nested_preview["tracks"]],
+                [True, True],
             )
             prepared = manager._tracks_for_payload({
                 "source": "spotify",
@@ -421,6 +645,7 @@ class MusicDownloaderCoreTests(unittest.TestCase):
                         "bpm": 126,
                         "key": {"name": "A min", "camelot": "8A"},
                         "genre": {"name": "House"},
+                        "publish_date": "2016-05-20",
                         "artists": [{"name": "Happy Clappers"}],
                     }},
                 },
@@ -442,8 +667,8 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             [("Happy Clappers", "I Believe (Original Mix)", 435253)],
         )
         self.assertEqual(
-            (tracks[0].bpm, tracks[0].camelot, tracks[0].genre, tracks[0].mix_name),
-            (126, "8A", "House", "Original Mix"),
+            (tracks[0].bpm, tracks[0].camelot, tracks[0].genre, tracks[0].mix_name, tracks[0].released_at),
+            (126, "8A", "House", "Original Mix", "2016-05-20"),
         )
 
     def test_beatport_release_keeps_each_mix_and_ignores_recommended_albums(self) -> None:

@@ -327,9 +327,12 @@
                 </div>
               </div>
               <p class="helper" data-i18n="losslessWarning">FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.</p>
+              <label class="check" style="margin-top:12px;"><input id="year-month-folders" type="checkbox" /><span data-i18n="yearMonthFolders">Save in year/month folders (2026/09)</span></label>
+              <p class="helper" data-i18n="yearMonthFoldersHelp">Files go under YYYY/MM from the track’s Spotify, Beatport, or YouTube date. If the provider has no date, today’s date is used. The playlist stays with the tracks when they share a month; otherwise it goes in today’s folder.</p>
               <label class="check" style="margin-top:12px;"><input id="rekordbox-playlist" type="checkbox" /><span data-i18n="rekordboxPlaylist">Create a Rekordbox-compatible .m3u8 playlist</span></label>
               <label class="check" style="margin-top:12px;"><input id="extract-suggested-stems" type="checkbox" /><span data-i18n="extractSuggestedStems">Extract suggested vocal/drums WAVs for Rekordbox</span></label>
               <p class="helper" data-i18n="extractStemsHelp">Only parts the hint marks useful. Rekordbox imports those WAVs as normal tracks (USB/third deck). Native STEMS still run on the mixed file in Performance mode. Needs the optional Demucs tool.</p>
+              <p class="helper" data-i18n="rekordboxTagsHelp">Rekordbox reads Genre, Grouping, and Comments from the audio file on import. Playlist name is written to Grouping (and Comments). Rekordbox My Tags and colour labels live only inside Rekordbox and cannot be set from this app.</p>
             </details>
 
             <label class="check"><input id="rights-confirmed" type="checkbox" /><span data-i18n="rights">I have the rights or permission to download these tracks and will follow the source service’s terms.</span></label>

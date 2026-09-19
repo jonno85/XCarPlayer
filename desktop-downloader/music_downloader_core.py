@@ -27,7 +27,7 @@ from urllib.request import Request, urlopen
 from dj_styling import build_dj_card, camelot_from_key, prepare_dj_assets, preview_line
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text", "search"}
@@ -132,6 +132,7 @@ class Track:
     genre: str = ""
     mix_name: str = ""
     analysis_source: str = ""
+    released_at: str = ""
 
     @property
     def label(self) -> str:
@@ -176,6 +177,7 @@ def _preview_track_payload(track: Track, existing: bool = False) -> Dict[str, An
         "genre": track.genre,
         "mix_name": track.mix_name,
         "analysis_source": track.analysis_source,
+        "released_at": track.released_at,
         "dj_hint": preview_line(card),
         "stems_useful": list(card.get("stems", {}).get("useful") or []),
         "existing": existing,
@@ -198,6 +200,7 @@ def _track_from_prepared_item(item: Dict[str, Any]) -> Optional[Track]:
         genre=str(item.get("genre") or "").strip(),
         mix_name=str(item.get("mix_name") or "").strip(),
         analysis_source=str(item.get("analysis_source") or "").strip(),
+        released_at=release_date_text(item),
     )
 
 
@@ -255,8 +258,10 @@ def _parse_csv_tracks(text: str) -> List[Track]:
     headers = [header_key(value) for value in rows[0]]
     artist_names = {"artist", "artists", "artistname", "artistnames"}
     title_names = {"title", "track", "trackname", "song", "songtitle", "name"}
+    date_names = {"releasedate", "released", "date", "year", "albumreleasedate", "publishdate"}
     artist_index = next((i for i, value in enumerate(headers) if value in artist_names), None)
     title_index = next((i for i, value in enumerate(headers) if value in title_names), None)
+    date_index = next((i for i, value in enumerate(headers) if value in date_names), None)
     if artist_index is None or title_index is None:
         return []
     tracks = []
@@ -264,8 +269,11 @@ def _parse_csv_tracks(text: str) -> List[Track]:
         if max(artist_index, title_index) >= len(row):
             continue
         artist, title = row[artist_index].strip(), row[title_index].strip()
+        released_at = ""
+        if date_index is not None and date_index < len(row):
+            released_at = release_date_text(row[date_index])
         if title:
-            tracks.append(Track(title=title, artist=artist))
+            tracks.append(Track(title=title, artist=artist, released_at=released_at))
     return tracks
 
 
@@ -382,7 +390,12 @@ def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> Lis
         title = _spotify_text(entity.get("title") or entity.get("name"))
         artist = _spotify_artist_names(entity)
         if title:
-            return [Track(title=title, artist=artist, duration_ms=_spotify_duration_ms(entity))]
+            return [Track(
+                title=title,
+                artist=artist,
+                duration_ms=_spotify_duration_ms(entity),
+                released_at=release_date_text(entity),
+            )]
 
     track_list = entity.get("trackList", []) if isinstance(entity, dict) else []
     tracks = [
@@ -390,6 +403,7 @@ def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> Lis
             title=_spotify_text(item.get("title")),
             artist=_spotify_artist_names(item),
             duration_ms=_spotify_duration_ms(item),
+            released_at=release_date_text(item),
         )
         for item in track_list
         if isinstance(item, dict) and _spotify_text(item.get("title"))
@@ -416,6 +430,7 @@ def _spotify_tracks_from_embed_data(data: Dict[str, Any], item_type: str) -> Lis
                 title=title,
                 artist=_spotify_artist_names(track),
                 duration_ms=_spotify_duration_ms(track),
+                released_at=release_date_text(track) or release_date_text(item),
             )
         )
     return parsed
@@ -593,6 +608,7 @@ def _beatport_track_from_node(node: Any) -> Optional[Track]:
         genre=_beatport_genre(node),
         mix_name=mix,
         analysis_source="beatport",
+        released_at=release_date_text(node),
     )
 
 
@@ -666,7 +682,11 @@ def _beatport_tracks_from_structured_data(data: Any) -> List[Track]:
                     entry.get("name", "") if isinstance(entry, dict) else str(entry) for entry in artist
                 )
             if title and str(artist).strip():
-                tracks.append(Track(title=title, artist=str(artist).strip()))
+                tracks.append(Track(
+                    title=title,
+                    artist=str(artist).strip(),
+                    released_at=release_date_text(item) or release_date_text(node),
+                ))
     return tracks
 
 
@@ -788,6 +808,7 @@ def youtube_search_hits(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "duration_ms": int(duration * 1000) if duration else 0,
             "duration_label": _format_clock_duration(duration),
             "url": url,
+            "released_at": release_date_text(entry),
         })
     return hits
 
@@ -843,6 +864,179 @@ def output_filename_stem(track: Track, payload: Dict[str, Any]) -> str:
     if track.direct_url:
         return "%(title)s"
     return safe_filename(track.title)
+
+
+def year_month_save_directory(
+    root: Path,
+    enabled: bool,
+    when: Optional[datetime] = None,
+) -> Path:
+    """Return the music folder, or root/YYYY/MM for the given date."""
+    if not enabled:
+        return root
+    stamp = when or datetime.now()
+    return root / f"{stamp:%Y}" / f"{stamp:%m}"
+
+
+_PROVIDER_DATE_KEYS = (
+    "publish_date",
+    "new_release_date",
+    "release_date",
+    "releaseDate",
+    "released_at",
+    "releasedAt",
+    "date_published",
+    "datePublished",
+    "upload_date",
+    "uploadDate",
+    "release_year",
+    "year",
+    "timestamp",
+    "date",
+)
+
+
+def parse_provider_datetime(value: Any) -> Optional[datetime]:
+    """Parse a provider release or upload date into year/month (and day when known)."""
+    if value in (None, False, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    if isinstance(value, dict):
+        for key in _PROVIDER_DATE_KEYS + ("isoString", "iso"):
+            parsed = parse_provider_datetime(value.get(key))
+            if parsed:
+                return parsed
+        year = _optional_int(value.get("year"))
+        if 1900 <= year <= 2100:
+            month = _optional_int(value.get("month"))
+            return datetime(year, month if 1 <= month <= 12 else 1, 1)
+        return None
+    if isinstance(value, (int, float)):
+        number = int(value)
+        if number >= 1_000_000_000_000:
+            number = number // 1000
+        if number >= 1_000_000_000:
+            try:
+                return datetime.fromtimestamp(number)
+            except (OSError, OverflowError, ValueError):
+                return None
+        text = str(number)
+    else:
+        text = str(value).strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d{8}", text):
+        try:
+            return datetime.strptime(text, "%Y%m%d")
+        except ValueError:
+            return None
+    match = re.match(r"^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?", text)
+    if match and (match.group(2) or re.fullmatch(r"\d{4}", text)):
+        year = int(match.group(1))
+        month = int(match.group(2) or 1)
+        day = int(match.group(3) or 1)
+        if 1900 <= year <= 2100 and 1 <= month <= 12:
+            try:
+                return datetime(year, month, day)
+            except ValueError:
+                return datetime(year, month, 1)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00")[:19])
+        return parsed.replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def provider_datetime_from_node(node: Any) -> Optional[datetime]:
+    """Read a release/upload date from a Spotify, Beatport, or YouTube metadata object."""
+    if not isinstance(node, dict):
+        return parse_provider_datetime(node)
+    for key in _PROVIDER_DATE_KEYS:
+        parsed = parse_provider_datetime(node.get(key))
+        if parsed:
+            return parsed
+    for nested_key in ("album", "release", "track"):
+        nested = node.get(nested_key)
+        if isinstance(nested, dict):
+            parsed = provider_datetime_from_node(nested)
+            if parsed:
+                return parsed
+    return None
+
+
+def release_date_text(value: Any) -> str:
+    """Normalize provider metadata to YYYY-MM-DD, or empty when unknown."""
+    parsed = provider_datetime_from_node(value)
+    return parsed.strftime("%Y-%m-%d") if parsed else ""
+
+
+def crate_datetime(track: Track, fallback: Optional[datetime] = None) -> datetime:
+    """Prefer the provider release date; otherwise use the current (or given) date."""
+    parsed = parse_provider_datetime(track.released_at)
+    if parsed:
+        return parsed
+    return fallback or datetime.now()
+
+
+def playlist_crate_directory(
+    root: Path,
+    enabled: bool,
+    saved_paths: List[Path],
+    fallback: datetime,
+) -> Path:
+    """Keep the playlist with the tracks when they share a month; otherwise use today."""
+    if not enabled:
+        return root
+    by_folder: Dict[Path, Path] = {}
+    for path in saved_paths:
+        if not path:
+            continue
+        by_folder.setdefault(path.resolve().parent, path.parent)
+    if len(by_folder) == 1:
+        return next(iter(by_folder.values()))
+    return year_month_save_directory(root, True, fallback)
+
+
+def rekordbox_file_tags(track: Track, payload: Dict[str, Any]) -> Dict[str, str]:
+    """Build file tags Rekordbox reads on import (Genre, Grouping, Comments).
+
+    Rekordbox My Tags and colour labels live only in Rekordbox's database and
+    cannot be written into audio files or .m3u8 playlists.
+    """
+    tags: Dict[str, str] = {}
+    source = str(payload.get("source", "")).lower()
+    if source != "search":
+        if track.title and track.title != "YouTube item":
+            tags["title"] = track.title
+        if track.artist:
+            tags["artist"] = track.artist
+    if track.genre:
+        tags["genre"] = track.genre
+    playlist_name = str(payload.get("playlist_name") or "").strip()
+    crate = str(payload.get("crate") or "").strip()
+    grouping = playlist_name or crate
+    if grouping:
+        tags["grouping"] = grouping
+    comment_parts: List[str] = []
+    for part in (playlist_name, crate):
+        if part and part not in comment_parts:
+            comment_parts.append(part)
+    if comment_parts:
+        tags["comment"] = " | ".join(comment_parts)
+    released = parse_provider_datetime(track.released_at)
+    if released:
+        tags["date"] = f"{released:%Y}"
+    return tags
+
+
+def ffmpeg_metadata_args(tags: Dict[str, str]) -> List[str]:
+    """Turn tag names into ffmpeg -metadata arguments."""
+    args: List[str] = []
+    for key, value in tags.items():
+        if value:
+            args.extend(["-metadata", f"{key}={value}"])
+    return args
 
 
 def ffmpeg_path() -> str:
@@ -941,18 +1135,29 @@ class LibraryHistory:
             ],
         }
 
-    def find_existing(self, directory: Path, track: Track) -> Optional[Path]:
-        if not directory.is_dir() or track.title == "YouTube item":
+    def audio_index(self, directory: Path) -> Dict[str, Path]:
+        """Map normalized artist-title keys to audio files under a library root."""
+        index: Dict[str, Path] = {}
+        if not directory.is_dir():
+            return index
+        for path in directory.rglob("*"):
+            if path.is_file() and path.suffix.casefold() in AUDIO_EXTENSIONS:
+                index.setdefault(normalized_track_key(path.name), path)
+        return index
+
+    def find_existing(
+        self,
+        directory: Path,
+        track: Track,
+        index: Optional[Dict[str, Path]] = None,
+    ) -> Optional[Path]:
+        if track.title == "YouTube item":
             return None
         desired = normalized_track_key(
             f"{track.artist} {track.title}" if track.artist else track.title
         )
-        for path in directory.iterdir():
-            if path.is_file() and path.suffix.casefold() in AUDIO_EXTENSIONS:
-                candidate = normalized_track_key(path.name)
-                if candidate == desired:
-                    return path
-        return None
+        lookup = index if index is not None else self.audio_index(directory)
+        return lookup.get(desired)
 
     def resolve_media(self, entry_id: str) -> Path:
         for entry in self.entries():
@@ -1038,6 +1243,9 @@ class DownloadManager:
         tracks = self._tracks_for_payload(payload, allow_prepared=False)
         output_value = str(payload.get("output_dir", "")).strip()
         output_directory = Path(output_value).expanduser() if output_value else None
+        library_index = (
+            self.history.audio_index(output_directory) if output_directory else {}
+        )
         return {
             "source": str(payload.get("source", "")).lower(),
             "source_url": str(payload.get("url", "")).strip(),
@@ -1047,7 +1255,9 @@ class DownloadManager:
                     track,
                     existing=bool(
                         output_directory
-                        and self.history.find_existing(output_directory, track)
+                        and self.history.find_existing(
+                            output_directory, track, library_index
+                        )
                     ),
                 )
                 for track in tracks
@@ -1157,19 +1367,30 @@ class DownloadManager:
 
     def _run(self, job_id: str, payload: Dict[str, Any], output_directory: Path) -> None:
         try:
-            output_directory.mkdir(parents=True, exist_ok=True)
-            tracks = self._tracks_for_payload(payload)
+            library_root = output_directory
+            started_at = datetime.now()
+            use_year_month = bool(payload.get("year_month_folders"))
+            default_directory = year_month_save_directory(library_root, use_year_month, started_at)
+            work_payload = dict(payload)
+            tracks = self._tracks_for_payload(work_payload)
             self._checkpoint(job_id)
             self._update(
                 job_id,
                 state="paused" if self._is_paused(job_id) else "downloading",
                 total=len(tracks),
+                output_dir=str(default_directory),
                 message=f"Downloading {len(tracks)} track{'s' if len(tracks) != 1 else ''}…",
             )
-            self._log(job_id, f"Saving to {output_directory}")
+            if use_year_month:
+                self._log(
+                    job_id,
+                    "Saving in year/month folders from the provider date, or today if unknown",
+                )
+            self._log(job_id, f"Saving to {default_directory}")
             saved_paths: List[Path] = []
             stem_paths: List[Path] = []
             stopped_early = False
+            library_index = self.history.audio_index(library_root)
             for index, track in enumerate(tracks, start=1):
                 try:
                     self._checkpoint(job_id)
@@ -1178,9 +1399,19 @@ class DownloadManager:
                     remaining = len(tracks) - index + 1
                     self._log(job_id, f"Stopped with {remaining} track{'s' if remaining != 1 else ''} remaining")
                     break
+                stamp = crate_datetime(track, started_at)
+                save_directory = year_month_save_directory(library_root, use_year_month, stamp)
+                track_payload = dict(work_payload)
+                if use_year_month:
+                    track_payload["crate"] = f"{stamp:%Y-%m}"
+                    save_directory.mkdir(parents=True, exist_ok=True)
+                    if save_directory != default_directory:
+                        self._log(job_id, f"Provider date {stamp:%Y-%m}: {save_directory}")
+                else:
+                    save_directory.mkdir(parents=True, exist_ok=True)
                 self._update(job_id, current=track.label, message=f"Downloading {index} of {len(tracks)}")
                 self._log(job_id, f"[{index}/{len(tracks)}] {track.label}")
-                existing_path = self.history.find_existing(output_directory, track)
+                existing_path = self.history.find_existing(library_root, track, library_index)
                 if existing_path:
                     history_entry = self.history.record(
                         existing_path,
@@ -1188,7 +1419,7 @@ class DownloadManager:
                         "existing",
                         existing_path.suffix.lstrip("."),
                         job_id,
-                        str(payload.get("url", "")),
+                        str(work_payload.get("url", "")),
                     )
                     with self._lock:
                         self._jobs[job_id]["existing"] += 1
@@ -1198,18 +1429,19 @@ class DownloadManager:
                             "media_id": history_entry["id"],
                         })
                     saved_paths.append(existing_path)
-                    stem_paths.extend(self._write_dj_assets(job_id, existing_path, track, payload))
+                    stem_paths.extend(self._write_dj_assets(job_id, existing_path, track, track_payload))
                     self._log(job_id, f"Already in library: {existing_path.name}")
                     continue
                 try:
-                    saved_path = self._download_until_saved(job_id, track, output_directory, payload)
+                    saved_path = self._download_until_saved(job_id, track, save_directory, track_payload)
+                    library_index.setdefault(normalized_track_key(saved_path.name), saved_path)
                     history_entry = self.history.record(
                         saved_path,
                         track,
-                        str(payload.get("source")),
-                        str(payload.get("audio_format", "mp3")),
+                        str(work_payload.get("source")),
+                        str(work_payload.get("audio_format", "mp3")),
                         job_id,
-                        str(payload.get("url", "")),
+                        str(work_payload.get("url", "")),
                     )
                     with self._lock:
                         self._jobs[job_id]["completed"] += 1
@@ -1219,7 +1451,7 @@ class DownloadManager:
                             "media_id": history_entry["id"],
                         })
                     saved_paths.append(saved_path)
-                    stem_paths.extend(self._write_dj_assets(job_id, saved_path, track, payload))
+                    stem_paths.extend(self._write_dj_assets(job_id, saved_path, track, track_payload))
                 except DownloadStopped:
                     stopped_early = True
                     remaining = len(tracks) - index + 1
@@ -1241,18 +1473,24 @@ class DownloadManager:
                         if "sign in to confirm you're not a bot" in str(error).lower():
                             self._jobs[job_id]["needs_browser_cookies"] = True
                     self._log(job_id, f"Could not download {track.label}: {error}")
-            if payload.get("rekordbox_playlist") and saved_paths:
+            playlist_directory = playlist_crate_directory(
+                library_root, use_year_month, saved_paths, started_at
+            )
+            if use_year_month and saved_paths:
+                playlist_directory.mkdir(parents=True, exist_ok=True)
+                self._update(job_id, output_dir=str(playlist_directory))
+            if work_payload.get("rekordbox_playlist") and saved_paths:
                 playlist_path = self._write_m3u8(
-                    output_directory,
-                    str(payload.get("playlist_name", "")).strip(),
+                    playlist_directory,
+                    str(work_payload.get("playlist_name", "")).strip(),
                     saved_paths,
                 )
-                self._update(job_id, playlist_path=str(playlist_path))
+                self._update(job_id, playlist_path=str(playlist_path), output_dir=str(playlist_directory))
                 self._log(job_id, f"Rekordbox playlist: {playlist_path.name}")
-            if payload.get("rekordbox_playlist") and stem_paths:
+            if work_payload.get("rekordbox_playlist") and stem_paths:
                 stem_playlist = self._write_m3u8(
-                    output_directory,
-                    f"{str(payload.get('playlist_name', '')).strip() or 'Rekordbox'} Stems",
+                    playlist_directory,
+                    f"{str(work_payload.get('playlist_name', '')).strip() or 'Rekordbox'} Stems",
                     stem_paths,
                 )
                 self._log(job_id, f"Rekordbox stem playlist: {stem_playlist.name}")
@@ -1418,7 +1656,11 @@ class DownloadManager:
             if entry.get("ie_key") == "Youtube" and entry_url and not str(entry_url).startswith("http"):
                 entry_url = f"https://www.youtube.com/watch?v={entry_url}"
             if entry_url:
-                tracks.append(Track(title=str(entry.get("title") or "YouTube item"), direct_url=str(entry_url)))
+                tracks.append(Track(
+                    title=str(entry.get("title") or "YouTube item"),
+                    direct_url=str(entry_url),
+                    released_at=release_date_text(entry),
+                ))
         if not tracks:
             raise InputError("YouTube did not return any playable items from this playlist.")
         return tracks
@@ -1440,6 +1682,7 @@ class DownloadManager:
             title=str(info.get("track") or info.get("title") or "YouTube item"),
             artist=str(info.get("artist") or info.get("uploader") or ""),
             direct_url=url,
+            released_at=release_date_text(info),
         )
 
     def _download_track(
@@ -1486,15 +1729,9 @@ class DownloadManager:
         browser = self._youtube_cookie_browser(payload)
         if browser:
             options["cookiesfrombrowser"] = (browser,)
-        if track.artist and str(payload.get("source", "")).lower() != "search":
-            options["postprocessor_args"] = {
-                "FFmpegMetadata": [
-                    "-metadata",
-                    f"title={track.title}",
-                    "-metadata",
-                    f"artist={track.artist}",
-                ]
-            }
+        metadata_args = ffmpeg_metadata_args(rekordbox_file_tags(track, payload))
+        if metadata_args:
+            options["postprocessor_args"] = {"FFmpegMetadata": metadata_args}
         with yt_dlp.YoutubeDL(options) as downloader:
             downloader.download([self._youtube_source_for_track(track, options)])
         expected_path = output_directory / f"{filename}.{audio_format}"
