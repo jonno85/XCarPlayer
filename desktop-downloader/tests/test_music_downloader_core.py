@@ -17,20 +17,27 @@ from music_downloader_core import (
     choose_youtube_result,
     crate_datetime,
     ffmpeg_metadata_args,
+    merge_catalog_track,
     normalized_track_key,
     output_filename_stem,
     parse_import_tracks,
     parse_provider_datetime,
     parse_spotify_url,
     parse_text_tracks,
+    pick_catalog_track,
     playlist_crate_directory,
     rekordbox_file_tags,
     release_date_text,
     safe_filename,
+    tags_for_container,
     validate_source_url,
     year_month_save_directory,
     youtube_search_hits,
 )
+
+
+def setUpModule() -> None:
+    DownloadManager.catalog_match = staticmethod(lambda track: None)
 
 
 class MusicDownloaderCoreTests(unittest.TestCase):
@@ -268,7 +275,7 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         self.assertEqual(tags["artist"], "Artist")
         self.assertEqual(tags["genre"], "House")
         self.assertEqual(tags["grouping"], "Peak Time")
-        self.assertEqual(tags["comment"], "Peak Time | 2026-05")
+        self.assertEqual(tags["comment"], "Peak Time | 2026-05 | House")
         self.assertEqual(tags["date"], "2025")
         self.assertEqual(
             ffmpeg_metadata_args({"genre": "House", "grouping": "Peak Time"}),
@@ -284,6 +291,39 @@ class MusicDownloaderCoreTests(unittest.TestCase):
         self.assertNotIn("artist", tags)
         self.assertEqual(tags["genre"], "Techno")
         self.assertEqual(tags["grouping"], "Crate")
+
+    def test_rekordbox_file_tags_include_bpm_and_classic_key(self) -> None:
+        tags = rekordbox_file_tags(
+            Track(
+                title="Song",
+                artist="Artist",
+                bpm=126,
+                musical_key="A min",
+                camelot="8A",
+                genre="House",
+                released_at="2025-03-09",
+            ),
+            {"playlist_name": "Peak Time", "crate": "2025-03", "source": "beatport"},
+        )
+        self.assertEqual(tags["TBPM"], "126")
+        self.assertEqual(tags["TKEY"], "Am")
+        self.assertEqual(tags["date"], "2025")
+        self.assertEqual(tags["comment"], "Peak Time | 2025-03 | House | 126 | 8A")
+        self.assertEqual(
+            tags_for_container(Path("song.flac"), tags)["INITIALKEY"],
+            "Am",
+        )
+        self.assertEqual(tags_for_container(Path("song.m4a"), tags)["tmpo"], "126")
+
+    def test_catalog_match_prefers_the_same_artist_and_original_mix(self) -> None:
+        wanted = Track(title="I Believe", artist="Happy Clappers")
+        chosen = pick_catalog_track(wanted, [
+            Track(title="I Believe (Extended Mix)", artist="Someone Else", bpm=140, genre="Techno", mix_name="Extended Mix"),
+            Track(title="I Believe (Original Mix)", artist="Happy Clappers", bpm=126, musical_key="A min", camelot="8A", genre="House", mix_name="Original Mix"),
+        ])
+        self.assertIsNotNone(chosen)
+        merged = merge_catalog_track(wanted, chosen)
+        self.assertEqual((merged.bpm, merged.genre, merged.camelot), (126, "House", "8A"))
 
     def test_rekordbox_playlist_uses_relative_utf8_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

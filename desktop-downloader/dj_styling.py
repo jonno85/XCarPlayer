@@ -171,6 +171,41 @@ def camelot_from_key(value: Any) -> str:
     return table.get(note, "")
 
 
+# Classic notation Rekordbox stores in TKEY and can display as Camelot.
+_REKORDBOX_KEY = {
+    "1A": "G#m",
+    "2A": "D#m",
+    "3A": "A#m",
+    "4A": "Fm",
+    "5A": "Cm",
+    "6A": "Gm",
+    "7A": "Dm",
+    "8A": "Am",
+    "9A": "Em",
+    "10A": "Bm",
+    "11A": "F#m",
+    "12A": "C#m",
+    "1B": "B",
+    "2B": "F#",
+    "3B": "C#",
+    "4B": "G#",
+    "5B": "D#",
+    "6B": "A#",
+    "7B": "F",
+    "8B": "C",
+    "9B": "G",
+    "10B": "D",
+    "11B": "A",
+    "12B": "E",
+}
+
+
+def rekordbox_key(value: Any = "", camelot: str = "") -> str:
+    """Return the classic key Rekordbox reads from TKEY, such as 'Am' or 'F#'."""
+    code = camelot_from_key(camelot) or camelot_from_key(value)
+    return _REKORDBOX_KEY.get(code, "")
+
+
 def camelot_neighbors(code: str) -> List[str]:
     """Harmonic mixing neighbours: ±1 same mode, and relative major/minor."""
     parsed = camelot_from_key(code)

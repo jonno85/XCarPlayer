@@ -12,6 +12,7 @@ from dj_styling import (
     extract_suggested_stems,
     prepare_dj_assets,
     preview_line,
+    rekordbox_key,
     sidecar_path,
 )
 
@@ -22,6 +23,9 @@ class DjStylingTests(unittest.TestCase):
         self.assertEqual(camelot_from_key("Am"), "8A")
         self.assertEqual(camelot_from_key("C"), "8B")
         self.assertEqual(camelot_from_key("8a"), "8A")
+        self.assertEqual(rekordbox_key("A min"), "Am")
+        self.assertEqual(rekordbox_key("", "11A"), "F#m")
+        self.assertEqual(rekordbox_key("F# maj"), "F#")
         self.assertEqual(
             camelot_from_key({"name": "F# min", "camelot_number": 11, "camelot_letter": "A"}),
             "11A",

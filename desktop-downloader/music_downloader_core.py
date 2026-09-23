@@ -16,15 +16,21 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 from urllib.request import Request, urlopen
 
 
-from dj_styling import build_dj_card, camelot_from_key, prepare_dj_assets, preview_line
+from dj_styling import (
+    build_dj_card,
+    camelot_from_key,
+    prepare_dj_assets,
+    preview_line,
+    rekordbox_key,
+)
 
 APP_NAME = "Music Library Downloader"
 APP_VERSION = "1.7.0"
@@ -440,7 +446,6 @@ def beatport_tracks(url: str) -> List[Track]:
     """Read track metadata from a public Beatport page without reading audio."""
     try:
         import requests
-        from bs4 import BeautifulSoup
     except ImportError as error:
         raise InputError("Beatport support is still installing. Restart the app and try again.") from error
 
@@ -458,7 +463,22 @@ def beatport_tracks(url: str) -> List[Track]:
     except requests.RequestException as error:
         raise InputError("Beatport could not open this link. Check the link and try again.") from error
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    tracks = _tracks_from_beatport_html(response.text)
+    if not tracks:
+        raise InputError(
+            "No tracks were found on this Beatport page. The page may be private or "
+            "Beatport may have changed its public page format."
+        )
+    return tracks
+
+
+def _tracks_from_beatport_html(html: str) -> List[Track]:
+    """Read catalog tracks from a public Beatport HTML page."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
     tracks: List[Track] = []
     next_data = soup.find("script", id="__NEXT_DATA__")
     if next_data and next_data.string:
@@ -466,21 +486,84 @@ def beatport_tracks(url: str) -> List[Track]:
             tracks.extend(_beatport_tracks_from_data(json.loads(next_data.string)))
         except json.JSONDecodeError:
             pass
-
     for structured_data in soup.find_all("script", attrs={"type": "application/ld+json"}):
         if structured_data.string:
             try:
                 tracks.extend(_beatport_tracks_from_structured_data(json.loads(structured_data.string)))
             except json.JSONDecodeError:
                 pass
+    return _unique_tracks(tracks)
 
-    tracks = _unique_tracks(tracks)
-    if not tracks:
-        raise InputError(
-            "No tracks were found on this Beatport page. The page may be private or "
-            "Beatport may have changed its public page format."
-        )
-    return tracks
+
+def beatport_catalog_match(track: Track) -> Optional[Track]:
+    """Find genre, BPM, and key for a track on Beatport's public search page."""
+    query = track.search_query.strip()
+    if not query:
+        return None
+    try:
+        import requests
+    except ImportError:
+        return None
+    url = "https://www.beatport.com/search/tracks?q=" + quote_plus(query)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=12)
+        response.raise_for_status()
+    except requests.RequestException:
+        return None
+    return pick_catalog_track(track, _tracks_from_beatport_html(response.text))
+
+
+def pick_catalog_track(wanted: Track, candidates: List[Track]) -> Optional[Track]:
+    """Choose the Beatport row that matches this artist and title."""
+    want_title = normalized_track_key(wanted.title)
+    want_artist = normalized_track_key(wanted.artist)
+    if not want_title:
+        return None
+    best: Optional[Track] = None
+    best_score = 0
+    for candidate in candidates:
+        if not (candidate.bpm or candidate.genre or candidate.musical_key or candidate.camelot):
+            continue
+        title = normalized_track_key(candidate.title)
+        artist = normalized_track_key(candidate.artist)
+        if title != want_title and want_title not in title and title not in want_title:
+            continue
+        if want_artist and artist and want_artist not in artist and artist not in want_artist:
+            continue
+        score = 5 if title == want_title else 3
+        if want_artist and artist and (want_artist == artist or want_artist in artist or artist in want_artist):
+            score += 4
+        elif want_artist and not artist:
+            score -= 2
+        if "original mix" in candidate.mix_name.casefold():
+            score += 1
+        if score > best_score:
+            best = candidate
+            best_score = score
+    if best is None or best_score < 3:
+        return None
+    return best
+
+
+def merge_catalog_track(track: Track, match: Track) -> Track:
+    """Fill missing genre, BPM, key, and release date from a catalog match."""
+    return replace(
+        track,
+        bpm=track.bpm or match.bpm,
+        musical_key=track.musical_key or match.musical_key,
+        camelot=track.camelot or match.camelot,
+        genre=track.genre or match.genre,
+        mix_name=track.mix_name or match.mix_name,
+        released_at=track.released_at or match.released_at,
+        analysis_source=track.analysis_source or match.analysis_source or "beatport",
+    )
 
 
 def _beatport_tracks_from_data(data: Any) -> List[Track]:
@@ -999,10 +1082,11 @@ def playlist_crate_directory(
 
 
 def rekordbox_file_tags(track: Track, payload: Dict[str, Any]) -> Dict[str, str]:
-    """Build file tags Rekordbox reads on import (Genre, Grouping, Comments).
+    """Build file tags Rekordbox reads on import.
 
-    Rekordbox My Tags and colour labels live only in Rekordbox's database and
-    cannot be written into audio files or .m3u8 playlists.
+    MP3 frames: Genre (TCON), BPM (TBPM), Key (TKEY), Year (date), Grouping, Comments.
+    TKEY uses classic notation (Am, F#) so Rekordbox can display it as Camelot.
+    My Tags and colour labels live only in Rekordbox's database.
     """
     tags: Dict[str, str] = {}
     source = str(payload.get("source", "")).lower()
@@ -1013,13 +1097,19 @@ def rekordbox_file_tags(track: Track, payload: Dict[str, Any]) -> Dict[str, str]
             tags["artist"] = track.artist
     if track.genre:
         tags["genre"] = track.genre
+    if track.bpm:
+        tags["TBPM"] = str(track.bpm)
+    classic_key = rekordbox_key(track.musical_key, track.camelot)
+    if classic_key:
+        tags["TKEY"] = classic_key
     playlist_name = str(payload.get("playlist_name") or "").strip()
     crate = str(payload.get("crate") or "").strip()
     grouping = playlist_name or crate
     if grouping:
         tags["grouping"] = grouping
+    camelot = camelot_from_key(track.camelot) or camelot_from_key(track.musical_key)
     comment_parts: List[str] = []
-    for part in (playlist_name, crate):
+    for part in (playlist_name, crate, track.genre, str(track.bpm) if track.bpm else "", camelot):
         if part and part not in comment_parts:
             comment_parts.append(part)
     if comment_parts:
@@ -1028,6 +1118,53 @@ def rekordbox_file_tags(track: Track, payload: Dict[str, Any]) -> Dict[str, str]
     if released:
         tags["date"] = f"{released:%Y}"
     return tags
+
+
+def tags_for_container(audio_path: Path, tags: Dict[str, str]) -> Dict[str, str]:
+    """Rename BPM and key keys for containers other than MP3."""
+    mapped = {key: value for key, value in tags.items() if value}
+    suffix = audio_path.suffix.lower()
+    if suffix in {".flac", ".opus"}:
+        if mapped.get("TBPM"):
+            mapped["BPM"] = mapped.pop("TBPM")
+        if mapped.get("TKEY"):
+            mapped["INITIALKEY"] = mapped.pop("TKEY")
+    elif suffix in {".m4a", ".mp4"}:
+        if mapped.get("TBPM"):
+            mapped["tmpo"] = mapped.pop("TBPM")
+    return mapped
+
+
+def write_rekordbox_tags(audio_path: Path, tags: Dict[str, str]) -> None:
+    """Rewrite tags in place without re-encoding the audio."""
+    mapped = tags_for_container(audio_path, tags)
+    if not mapped or not audio_path.is_file():
+        return
+    temporary = audio_path.with_name(f".{audio_path.name}.retag")
+    command = [
+        ffmpeg_path(),
+        "-y",
+        "-i",
+        str(audio_path),
+        "-map",
+        "0:a",
+        "-c",
+        "copy",
+    ]
+    if audio_path.suffix.lower() == ".mp3":
+        command.extend(["-id3v2_version", "3"])
+    command.extend(ffmpeg_metadata_args(mapped))
+    command.append(str(temporary))
+    try:
+        result = subprocess.run(command, capture_output=True, text=True)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
+    if result.returncode != 0 or not temporary.is_file():
+        temporary.unlink(missing_ok=True)
+        detail = (result.stderr or result.stdout or "").strip().splitlines()
+        raise InputError(detail[-1] if detail else "Could not write Rekordbox tags.")
+    temporary.replace(audio_path)
 
 
 def ffmpeg_metadata_args(tags: Dict[str, str]) -> List[str]:
@@ -1184,6 +1321,8 @@ class LibraryHistory:
 
 class DownloadManager:
     """Runs yt-dlp jobs in background threads and exposes safe status snapshots."""
+
+    catalog_match = staticmethod(beatport_catalog_match)
 
     def __init__(self, history: Optional[LibraryHistory] = None) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
@@ -1399,6 +1538,7 @@ class DownloadManager:
                     remaining = len(tracks) - index + 1
                     self._log(job_id, f"Stopped with {remaining} track{'s' if remaining != 1 else ''} remaining")
                     break
+                track = self._enrich_track(job_id, track)
                 stamp = crate_datetime(track, started_at)
                 save_directory = year_month_save_directory(library_root, use_year_month, stamp)
                 track_payload = dict(work_payload)
@@ -1778,6 +1918,23 @@ class DownloadManager:
             raise InputError("YouTube could not find a matching video for this track.")
         return url
 
+    def _enrich_track(self, job_id: str, track: Track) -> Track:
+        """Fill missing genre, BPM, and key from Beatport before the file is saved."""
+        if track.bpm and track.genre and (track.musical_key or track.camelot):
+            return track
+        try:
+            match = self.catalog_match(track)
+        except Exception as error:
+            self._log(job_id, f"Beatport catalog lookup failed for {track.label}: {error}")
+            return track
+        if not match:
+            return track
+        enriched = merge_catalog_track(track, match)
+        bits = [part for part in (enriched.genre, f"{enriched.bpm} BPM" if enriched.bpm else "", enriched.camelot or rekordbox_key(enriched.musical_key, enriched.camelot)) if part]
+        if bits:
+            self._log(job_id, f"Beatport catalog: {' · '.join(bits)}")
+        return enriched
+
     def _write_dj_assets(
         self,
         job_id: str,
@@ -1803,6 +1960,17 @@ class DownloadManager:
         except Exception as error:
             self._log(job_id, f"Could not write DJ sidecar for {track.label}: {error}")
             return []
+        tagged = replace(
+            track,
+            bpm=int(card.get("bpm") or 0) or track.bpm,
+            musical_key=str(card.get("key") or "") or track.musical_key,
+            camelot=str(card.get("camelot") or "") or track.camelot,
+            genre=str(card.get("genre") or "") or track.genre,
+        )
+        try:
+            write_rekordbox_tags(audio_path, rekordbox_file_tags(tagged, payload))
+        except Exception as error:
+            self._log(job_id, f"Could not write Rekordbox tags for {track.label}: {error}")
         sidecar = Path(str(card.get("sidecar_path") or ""))
         if sidecar.is_file():
             self._log(job_id, f"DJ sidecar: {sidecar.name}")

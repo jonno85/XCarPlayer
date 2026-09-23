@@ -34,6 +34,7 @@ class MusicDownloaderUiApiTests(unittest.TestCase):
             self.audio, Track(title="Canzone", artist="Artista"), "text", "mp3", "playlist"
         )
         self.manager = DownloadManager(self.history)
+        self.manager.catalog_match = lambda track: None
         self.server = ThreadingHTTPServer(
             ("127.0.0.1", 0),
             request_handler(self.config, self.manager, self.history),
