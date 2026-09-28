@@ -54,12 +54,48 @@ function shouldIgnoreJobSnapshot(job, currentJobId) {
   return Boolean(currentJobId && job && job.id && job.id !== currentJobId);
 }
 
+const ANSI_COLOR = {
+  "31": "log-red",
+  "32": "log-green",
+  "33": "log-yellow",
+  "1;31": "log-red",
+  "0;31": "log-red",
+};
+
+function logFragments(line) {
+  const text = String(line || "");
+  const ansi = /\u001b\[([0-9;]*)m/g;
+  const parts = [];
+  let last = 0;
+  let className = "";
+  let match;
+  while ((match = ansi.exec(text))) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index), className });
+    const code = match[1];
+    className = code === "0" || code === "" ? "" : (ANSI_COLOR[code] || ANSI_COLOR[code.split(";").pop()] || "");
+    last = ansi.lastIndex;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), className });
+  const visible = parts.filter((part) => part.text);
+  if (!visible.length) return [{ text: "", className: "" }];
+  const plain = visible.map((part) => part.text).join("");
+  if (visible.some((part) => part.className)) return visible;
+  if (/could not |error:|unexpected error/i.test(plain)) {
+    return [{ text: plain, className: "log-red" }];
+  }
+  if (/^(saved|already in library|rekordbox playlist|rekordbox stem|dj sidecar|beatport catalog)\b/i.test(plain)) {
+    return [{ text: plain, className: "log-green" }];
+  }
+  return visible;
+}
+
 const DownloadFlow = {
   detectSourceFromUrl,
   isYoutubePlaylistUrl,
   preparedTracksForPayload,
   shouldStartAfterPaste,
   shouldIgnoreJobSnapshot,
+  logFragments,
 };
 
 if (typeof module === "object" && module.exports) {

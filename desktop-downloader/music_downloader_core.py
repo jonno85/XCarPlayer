@@ -33,7 +33,7 @@ from dj_styling import (
 )
 
 APP_NAME = "Music Library Downloader"
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.8.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
 SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text", "search"}
@@ -1140,7 +1140,7 @@ def write_rekordbox_tags(audio_path: Path, tags: Dict[str, str]) -> None:
     mapped = tags_for_container(audio_path, tags)
     if not mapped or not audio_path.is_file():
         return
-    temporary = audio_path.with_name(f".{audio_path.name}.retag")
+    temporary = audio_path.with_name(f".{audio_path.stem}.retag{audio_path.suffix}")
     command = [
         ffmpeg_path(),
         "-y",
@@ -1592,6 +1592,7 @@ class DownloadManager:
                         })
                     saved_paths.append(saved_path)
                     stem_paths.extend(self._write_dj_assets(job_id, saved_path, track, track_payload))
+                    self._log(job_id, f"Saved: {saved_path.name}")
                 except DownloadStopped:
                     stopped_early = True
                     remaining = len(tracks) - index + 1

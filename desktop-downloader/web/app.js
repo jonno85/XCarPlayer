@@ -410,6 +410,28 @@
     panel.classList.toggle("hidden", !state.searchResults.length || state.source !== "search");
   }
 
+  function renderDownloadLog(lines) {
+    const log = $("#download-log");
+    log.replaceChildren();
+    if (!lines.length) {
+      log.textContent = "…";
+      return;
+    }
+    lines.forEach((line, index) => {
+      DownloadFlow.logFragments(line).forEach((part) => {
+        if (!part.className) {
+          log.append(part.text);
+          return;
+        }
+        const span = document.createElement("span");
+        span.className = part.className;
+        span.textContent = part.text;
+        log.append(span);
+      });
+      if (index < lines.length - 1) log.append("\n");
+    });
+  }
+
   function renderJob(job) {
     $("#status-panel").classList.add("is-visible");
     const completed = Number(job.completed || 0);
@@ -428,7 +450,7 @@
     $("#status-title").textContent = t(titleKey);
     $("#status-copy").textContent = job.message || t("working");
     $("#current-track").textContent = job.current || (finished ? job.output_dir : "");
-    $("#download-log").textContent = (job.log || []).join("\n") || "…";
+    renderDownloadLog(job.log || []);
     $("#pause-download").classList.toggle("hidden", finished || isPaused);
     $("#resume-download").classList.toggle("hidden", !isPaused);
     $("#stop-download").classList.toggle("hidden", finished);

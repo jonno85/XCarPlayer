@@ -77,4 +77,38 @@ assert.strictEqual(flow.detectSourceFromUrl("not a playlist"), "");
 assert.strictEqual(flow.isYoutubePlaylistUrl("https://www.youtube.com/playlist?list=PLabc"), true);
 assert.strictEqual(flow.isYoutubePlaylistUrl("https://www.youtube.com/watch?v=abc&list=PLabc"), false);
 
+const errorLine = flow.logFragments(
+  "Could not download Bobby Darin — Beyond the Sea: \u001b[0;31mERROR:\u001b[0m unable to download video data: HTTP Error 403: Forbidden",
+);
+assert.deepStrictEqual(
+  errorLine.map((part) => [part.className, part.text]),
+  [
+    ["", "Could not download Bobby Darin — Beyond the Sea: "],
+    ["log-red", "ERROR:"],
+    ["", " unable to download video data: HTTP Error 403: Forbidden"],
+  ],
+  "yt-dlp red ERROR codes should become a colored log fragment",
+);
+
+assert.strictEqual(
+  flow.logFragments("Could not download Song: HTTP Error 403: Forbidden")[0].className,
+  "log-red",
+  "a failure line without color codes is still marked red",
+);
+
+assert.strictEqual(
+  flow.logFragments("Saved: Bobby Darin - Beyond the Sea.mp3")[0].className,
+  "log-green",
+  "a saved track is marked green",
+);
+assert.strictEqual(
+  flow.logFragments("Already in library: Song.mp3")[0].className,
+  "log-green",
+);
+assert.strictEqual(
+  flow.logFragments("Could not write DJ sidecar for Song: disk full")[0].className,
+  "log-red",
+  "a failed follow-up action stays red",
+);
+
 console.log("ok");
