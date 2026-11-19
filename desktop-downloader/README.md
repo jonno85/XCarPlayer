@@ -6,10 +6,11 @@ It accepts:
 
 - a YouTube song or playlist link;
 - a public Spotify track or playlist link;
-- a public Beatport track or playlist link; or
+- a public Beatport track or playlist link;
+- a public Bandcamp album or track link; or
 - a `.txt` file (or pasted list), with one song per line.
 
-Spotify and Beatport links are used to read public track metadata only. Each listed track is then matched against YouTube and saved in the selected format with embedded title and artist metadata. This creates a consistent local library without attempting to access streaming-service audio.
+Spotify, Beatport, and Bandcamp links are used to read public track metadata only. Each listed track is then matched against YouTube and saved in the selected format with embedded title and artist metadata. This creates a consistent local library without attempting to access streaming-service audio. An album link is the Bandcamp playlist: every track on that album is listed.
 
 The interface is available in English and Italian. It also includes a native destination-folder picker, download history, pause and stop for in-progress jobs, in-app play/pause controls, duplicate highlighting, and selectable MP3, M4A, FLAC, WAV, or Opus output.
 
@@ -55,7 +56,7 @@ The app opens at a random `127.0.0.1` address in the default browser. It only li
 
 ## First use
 
-1. Pick YouTube, Spotify, Beatport, or **Song list**.
+1. Pick YouTube, Spotify, Beatport, Bandcamp, or **Song list**.
 2. Paste the URL, choose a `.txt` file, or paste one song per line.
 3. Choose a music folder and optionally save it as the default.
 4. Confirm you have the right or permission to download the tracks, then start. Pause or stop from the download status panel if you need to wait or cancel remaining tracks.
@@ -77,7 +78,7 @@ Use the local music folder as the source of truth and let Rekordbox reference it
 1. Choose a stable folder that will not be renamed or moved.
 2. In **Audio format & Rekordbox options**, use MP3 320 kbps for the widest Pioneer/CDJ compatibility. M4A and FLAC are suitable only after checking the target player model.
 3. Enable **Create a Rekordbox-compatible .m3u8 playlist** and import that playlist into Rekordbox.
-4. Optional: enable **Save in year/month folders** so each file lands in `<music folder>/YYYY/MM` using the track’s release or upload date from Spotify, Beatport, or YouTube. If the provider does not send a date, today’s date is used. When every saved track shares the same month, the `.m3u8` playlist is written there too; mixed dates put the playlist in today’s folder, with relative paths to each file. Duplicate detection looks through the whole music folder, so a track already saved in another month is reused rather than downloaded again.
+4. Optional: enable **Save in year/month folders** so each file lands in `<music folder>/YYYY/MM` using the track’s release or upload date from Spotify, Beatport, Bandcamp, or YouTube. If the provider does not send a date, today’s date is used. When every saved track shares the same month, the `.m3u8` playlist is written there too; mixed dates put the playlist in today’s folder, with relative paths to each file. Duplicate detection looks through the whole music folder, so a track already saved in another month is reused rather than downloaded again.
 5. Let Rekordbox analyze the waveform, beatgrid, and cues, then use Rekordbox’s own Device Library export for USB media. BPM and key are already written into the file. Rekordbox analysis replaces the BPM column (that is what builds the beatgrid). To keep the catalog key, turn off **Key** under Preferences → Analysis → Track Analysis before import.
 6. Each saved track also gets a `.dj.json` sidecar with Camelot numbering, harmonic neighbours, FX do/don’t hints, and which STEM is worth extracting. Import that JSON only as notes; Rekordbox ignores it.
 7. File tags Rekordbox reads on MP3 import: **Genre**, **BPM**, **Key**, **Year**, **Grouping**, and **Comments**. Genre, BPM, and key come from Beatport when the link is a Beatport page; Spotify, YouTube, and pasted lists are looked up on Beatport’s public search. If that lookup misses, BPM and key are estimated from the saved audio. The key is stored as classic notation (`Am`, `F#`) so Rekordbox can show it as Camelot. The playlist name is written to Grouping and Comments, together with the year-month crate (`2026-09`), genre, BPM, and Camelot code. Year is the file’s date tag; month stays in the folder and in Comments. Rekordbox **My Tags** and colour labels are stored only in Rekordbox’s database. After import, use **Reload Tags** if you re-export files that are already in the collection.

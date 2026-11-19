@@ -73,6 +73,7 @@ assert.deepStrictEqual(
 
 assert.strictEqual(flow.shouldIgnoreJobSnapshot({ id: "job-a" }, "job-b"), true);
 assert.strictEqual(flow.detectSourceFromUrl("https://open.spotify.com/playlist/abc"), "spotify");
+assert.strictEqual(flow.detectSourceFromUrl("https://night.bandcamp.com/album/coastal"), "bandcamp");
 assert.strictEqual(flow.detectSourceFromUrl("not a playlist"), "");
 assert.strictEqual(flow.isYoutubePlaylistUrl("https://www.youtube.com/playlist?list=PLabc"), true);
 assert.strictEqual(flow.isYoutubePlaylistUrl("https://www.youtube.com/watch?v=abc&list=PLabc"), false);

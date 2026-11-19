@@ -1,13 +1,14 @@
 """Shared download, configuration, and update logic for Music Library Downloader.
 
 Service URLs are used for metadata or user-provided YouTube downloads only. This
-module does not access Spotify or Beatport audio streams.
+module does not access Spotify, Beatport, or Bandcamp audio streams.
 """
 
 from __future__ import annotations
 
 import hashlib
 import csv
+import html
 import io
 import json
 import os
@@ -36,7 +37,7 @@ APP_NAME = "Music Library Downloader"
 APP_VERSION = "1.8.0"
 DEFAULT_GITHUB_REPOSITORY = "jonno85/XCarPlayer"
 DEFAULT_LIBRARY_DIRECTORY = Path.home() / "Music" / "Music Library"
-SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "text", "search"}
+SUPPORTED_SOURCES = {"youtube", "spotify", "beatport", "bandcamp", "text", "search"}
 SUPPORTED_COOKIE_BROWSERS = {"", "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi"}
 SUPPORTED_AUDIO_FORMATS = {"mp3", "m4a", "flac", "wav", "opus"}
 AUDIO_EXTENSIONS = {".mp3", ".m4a", ".flac", ".wav", ".opus", ".ogg", ".aac"}
@@ -299,6 +300,32 @@ def parse_spotify_url(url: str) -> Tuple[str, str]:
     return path_match.group(1), path_match.group(2)
 
 
+_BANDCAMP_PATH = re.compile(r"^/(album|track)/([^/?#]+)/?$")
+_BANDCAMP_DATE = re.compile(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})")
+_BANDCAMP_MONTHS = {
+    name: index
+    for index, name in enumerate(
+        ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"),
+        start=1,
+    )
+}
+
+
+def parse_bandcamp_url(url: str) -> Tuple[str, str]:
+    """Return 'album' or 'track' and the slug for a public Bandcamp URL."""
+    parsed = urlparse(url.strip())
+    host = parsed.netloc.lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    on_bandcamp = host == "bandcamp.com" or host.endswith(".bandcamp.com")
+    if parsed.scheme not in {"http", "https"} or not on_bandcamp:
+        raise InputError("Paste a Bandcamp album or track link.")
+    match = _BANDCAMP_PATH.fullmatch(parsed.path)
+    if not match:
+        raise InputError("Use a Bandcamp album or track link, not an artist or label page.")
+    return match.group(1), match.group(2)
+
+
 def validate_source_url(source: str, url: str) -> str:
     """Ensure the chosen provider matches a supported public URL."""
     value = url.strip()
@@ -306,6 +333,9 @@ def validate_source_url(source: str, url: str) -> str:
         raise InputError("Paste a link first.")
     if source == "spotify":
         parse_spotify_url(value)
+        return value
+    if source == "bandcamp":
+        parse_bandcamp_url(value)
         return value
 
     parsed = urlparse(value)
@@ -470,6 +500,316 @@ def beatport_tracks(url: str) -> List[Track]:
             "Beatport may have changed its public page format."
         )
     return tracks
+
+
+def bandcamp_tracks(url: str) -> List[Track]:
+    """Read track names from a public Bandcamp album or track page."""
+    try:
+        import requests
+    except ImportError as error:
+        raise InputError("Bandcamp support is still installing. Restart the app and try again.") from error
+
+    item_type, _slug = parse_bandcamp_url(url)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        raise InputError("Bandcamp could not open this link. Check the link and try again.") from error
+
+    tracks = _tracks_from_bandcamp_html(response.text, item_type)
+    if not tracks:
+        raise InputError(
+            "No tracks were found on this Bandcamp page. The page may be private or "
+            "Bandcamp may have changed its public page format."
+        )
+    return tracks
+
+
+def _tracks_from_bandcamp_html(page_html: str, item_type: str) -> List[Track]:
+    """Read catalog tracks from a public Bandcamp page, ignoring stream URLs."""
+    data = _bandcamp_tralbum_data(page_html)
+    genre = ""
+    structured: List[Any] = []
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        soup = None
+    else:
+        soup = BeautifulSoup(page_html, "html.parser")
+        genre = _bandcamp_page_genre(soup)
+        if data is None:
+            node = soup.find(attrs={"data-tralbum": True})
+            if node is not None:
+                try:
+                    data = json.loads(node.get("data-tralbum") or "")
+                except json.JSONDecodeError:
+                    data = None
+        for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            if not script.string:
+                continue
+            try:
+                structured.append(json.loads(script.string))
+            except json.JSONDecodeError:
+                continue
+    tracks = _bandcamp_tracks_from_tralbum(data, item_type, genre) if isinstance(data, dict) else []
+    if tracks:
+        return _unique_tracks(tracks)
+    parsed: List[Track] = []
+    for node in structured:
+        parsed.extend(_bandcamp_tracks_from_structured_data(node, item_type, genre))
+    return _unique_tracks(parsed)
+
+
+def _bandcamp_tralbum_data(page_html: str) -> Optional[Dict[str, Any]]:
+    """Pull Bandcamp's embedded TralbumData object without executing the page."""
+    attribute = re.search(r"""data-tralbum=(["'])(.*?)\1""", page_html, re.I | re.S)
+    if attribute:
+        try:
+            parsed = json.loads(html.unescape(attribute.group(2)))
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return parsed
+    marker = re.search(r"\bTralbumData\s*=\s*", page_html)
+    if not marker:
+        return None
+    start = page_html.find("{", marker.end())
+    if start < 0:
+        return None
+    blob = _json_object_at(page_html, start)
+    if not blob:
+        return None
+    try:
+        parsed = json.loads(blob)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _json_object_at(text: str, start: int) -> str:
+    """Return the JSON object that begins at start, respecting quoted braces."""
+    depth = 0
+    in_string = False
+    escape = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]
+    return ""
+
+
+def _bandcamp_page_genre(soup: Any) -> str:
+    container = soup.select_one(".tralbum-tags") if soup is not None else None
+    if container is None:
+        return ""
+    for link in container.select("a.tag"):
+        genre = _spotify_text(link.get_text())
+        if genre:
+            return genre
+    return ""
+
+
+def _bandcamp_artist_name(value: Any, fallback: str = "") -> str:
+    if isinstance(value, dict):
+        value = value.get("name") or value.get("title")
+    if isinstance(value, list):
+        names = [_bandcamp_artist_name(item) for item in value]
+        names = [name for name in names if name]
+        return ", ".join(names) or fallback
+    text = _spotify_text(value)
+    return text or fallback
+
+
+def _bandcamp_release_date(*values: Any) -> str:
+    for value in values:
+        if isinstance(value, dict):
+            iso = release_date_text(value)
+            if iso:
+                return iso
+            continue
+        text = _spotify_text(value)
+        if not text:
+            continue
+        iso = release_date_text(text)
+        if iso:
+            return iso
+        match = _BANDCAMP_DATE.search(text)
+        if not match:
+            continue
+        month = _BANDCAMP_MONTHS.get(match.group(2)[:3].casefold())
+        if not month:
+            continue
+        try:
+            return datetime(int(match.group(3)), month, int(match.group(1))).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return ""
+
+
+def _bandcamp_duration_ms(value: Any) -> int:
+    """Bandcamp trackinfo stores duration in seconds."""
+    if isinstance(value, str) and value.upper().startswith("P"):
+        return _iso8601_duration_ms(value)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if number <= 0:
+        return 0
+    if number >= 20_000:
+        return int(number)
+    return int(round(number * 1000))
+
+
+def _iso8601_duration_ms(value: str) -> int:
+    match = re.fullmatch(
+        r"P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?",
+        value.strip(),
+        re.I,
+    )
+    if not match or not any(match.groups()):
+        return 0
+    days, hours, minutes, seconds = match.groups()
+    total = (
+        int(days or 0) * 86400
+        + int(hours or 0) * 3600
+        + int(minutes or 0) * 60
+        + float(seconds or 0)
+    )
+    return int(round(total * 1000)) if total > 0 else 0
+
+
+def _bandcamp_tracks_from_tralbum(data: Dict[str, Any], item_type: str, genre: str) -> List[Track]:
+    trackinfo = data.get("trackinfo")
+    if not isinstance(trackinfo, list):
+        return []
+    album_artist = _bandcamp_artist_name(data.get("artist"))
+    current = data.get("current") if isinstance(data.get("current"), dict) else {}
+    released_at = _bandcamp_release_date(
+        data.get("album_release_date"),
+        current.get("release_date"),
+    )
+    entries: List[Tuple[Any, int, int, Track]] = []
+    for index, item in enumerate(trackinfo, start=1):
+        if not isinstance(item, dict):
+            continue
+        title = _spotify_text(item.get("title"))
+        if not title:
+            continue
+        track_num = _optional_int(item.get("track_num")) or index
+        entries.append((
+            item.get("id"),
+            track_num,
+            index,
+            Track(
+                title=title,
+                artist=_bandcamp_artist_name(item.get("artist"), album_artist),
+                duration_ms=_bandcamp_duration_ms(item.get("duration")),
+                genre=genre,
+                released_at=released_at,
+            ),
+        ))
+    if item_type == "track":
+        entries = _bandcamp_current_entry(entries, current)
+    entries.sort(key=lambda row: (row[1], row[2]))
+    return [row[3] for row in entries]
+
+
+def _bandcamp_current_entry(
+    entries: List[Tuple[Any, int, int, Track]],
+    current: Dict[str, Any],
+) -> List[Tuple[Any, int, int, Track]]:
+    """Keep the requested song when a track page also lists the rest of the album."""
+    if len(entries) <= 1:
+        return entries
+    current_id = current.get("id")
+    if current_id is not None:
+        matched = [entry for entry in entries if entry[0] == current_id]
+        if matched:
+            return matched[:1]
+    current_title = _spotify_text(current.get("title")).casefold()
+    if current_title:
+        matched = [entry for entry in entries if entry[3].title.casefold() == current_title]
+        if matched:
+            return matched[:1]
+    return entries[:1]
+
+
+def _bandcamp_tracks_from_structured_data(data: Any, item_type: str, genre: str) -> List[Track]:
+    tracks: List[Track] = []
+    for node in _bandcamp_structured_nodes(data):
+        kind_value = node.get("@type")
+        kind = " ".join(str(item) for item in kind_value) if isinstance(kind_value, list) else str(kind_value or "")
+        if "MusicAlbum" in kind or kind == "MusicPlaylist":
+            released_at = _bandcamp_release_date(node)
+            album_artist = _bandcamp_artist_name(node.get("byArtist"))
+            listing = node.get("track") or {}
+            elements = listing.get("itemListElement") if isinstance(listing, dict) else listing
+            if not isinstance(elements, list):
+                continue
+            for element in elements:
+                if not isinstance(element, dict):
+                    continue
+                item = element.get("item") if isinstance(element.get("item"), dict) else element
+                title = _spotify_text(item.get("name") or item.get("title"))
+                if not title:
+                    continue
+                tracks.append(Track(
+                    title=title,
+                    artist=_bandcamp_artist_name(item.get("byArtist"), album_artist),
+                    duration_ms=_bandcamp_duration_ms(item.get("duration")),
+                    genre=genre,
+                    released_at=released_at or _bandcamp_release_date(item),
+                ))
+        elif item_type == "track" and "MusicRecording" in kind and not tracks:
+            title = _spotify_text(node.get("name"))
+            if title:
+                tracks.append(Track(
+                    title=title,
+                    artist=_bandcamp_artist_name(node.get("byArtist")),
+                    duration_ms=_bandcamp_duration_ms(node.get("duration")),
+                    genre=genre,
+                    released_at=_bandcamp_release_date(node),
+                ))
+    return tracks
+
+
+def _bandcamp_structured_nodes(data: Any) -> List[Dict[str, Any]]:
+    if isinstance(data, list):
+        nodes: List[Dict[str, Any]] = []
+        for item in data:
+            nodes.extend(_bandcamp_structured_nodes(item))
+        return nodes
+    if not isinstance(data, dict):
+        return []
+    nodes = []
+    graph = data.get("@graph")
+    if isinstance(graph, list):
+        for item in graph:
+            nodes.extend(_bandcamp_structured_nodes(item))
+    nodes.append(data)
+    return nodes
 
 
 def _tracks_from_beatport_html(html: str) -> List[Track]:
@@ -1333,7 +1673,7 @@ class DownloadManager:
     def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         source = str(payload.get("source", "")).lower()
         if source not in SUPPORTED_SOURCES:
-            raise InputError("Choose YouTube, Spotify, Beatport, Search, or a text list.")
+            raise InputError("Choose YouTube, Spotify, Beatport, Bandcamp, Search, or a text list.")
         audio_format = str(payload.get("audio_format", "mp3")).lower()
         if audio_format not in SUPPORTED_AUDIO_FORMATS:
             raise InputError("Choose MP3, M4A, FLAC, WAV, or Opus.")
@@ -1765,6 +2105,8 @@ class DownloadManager:
             return [self._youtube_single_track(url, browser)]
         if source == "spotify":
             return spotify_tracks(url)
+        if source == "bandcamp":
+            return bandcamp_tracks(url)
         return beatport_tracks(url)
 
     def _youtube_cookie_browser(self, payload: Dict[str, Any]) -> str:

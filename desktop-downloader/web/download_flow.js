@@ -6,6 +6,7 @@ function detectSourceFromUrl(url) {
   if (value.includes("open.spotify.com") || value.startsWith("spotify:")) return "spotify";
   if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
   if (value.includes("beatport.com")) return "beatport";
+  if (value.includes("bandcamp.com")) return "bandcamp";
   return "";
 }
 

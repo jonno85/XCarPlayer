@@ -13,6 +13,7 @@ from music_downloader_core import (
     Track,
     _beatport_tracks_from_data,
     _spotify_tracks_from_embed_data,
+    _tracks_from_bandcamp_html,
     _unique_tracks,
     choose_youtube_result,
     crate_datetime,
@@ -22,6 +23,7 @@ from music_downloader_core import (
     output_filename_stem,
     parse_import_tracks,
     parse_provider_datetime,
+    parse_bandcamp_url,
     parse_spotify_url,
     parse_text_tracks,
     pick_catalog_track,
@@ -157,6 +159,67 @@ class MusicDownloaderCoreTests(unittest.TestCase):
             [(track.artist, track.title, track.released_at) for track in tracks],
             [("Artista", "Canzone", "2025-03-09")],
         )
+
+    def test_bandcamp_album_lists_tracks_in_order_without_using_the_stream(self) -> None:
+        page = """
+        <script>
+        var TralbumData = {
+          "artist": "Night Drive",
+          "album_release_date": "15 Mar 2024 00:00:00 GMT",
+          "trackinfo": [
+            {"id": 9, "track_num": 2, "title": "Coastal", "duration": 200.5,
+             "file": {"mp3-128": "https://t4.bcbits.com/stream/secret"}},
+            {"id": 8, "track_num": 1, "title": "Harbor", "duration": 180, "artist": "Guest"}
+          ]
+        };
+        </script>
+        <div class="tralbum-tags"><a class="tag">electronic</a><a class="tag">ambient</a></div>
+        """
+        tracks = _tracks_from_bandcamp_html(page, "album")
+        self.assertEqual(
+            [(track.artist, track.title, track.duration_ms, track.genre, track.released_at, track.direct_url) for track in tracks],
+            [
+                ("Guest", "Harbor", 180000, "electronic", "2024-03-15", ""),
+                ("Night Drive", "Coastal", 200500, "electronic", "2024-03-15", ""),
+            ],
+        )
+
+    def test_bandcamp_track_page_keeps_only_the_requested_song(self) -> None:
+        page = """
+        <div data-tralbum='{"artist":"Night Drive","current":{"id":9,"title":"Coastal"},
+          "trackinfo":[{"id":8,"title":"Harbor","duration":10},{"id":9,"title":"Coastal","duration":20}]}'>
+        </div>
+        """
+        tracks = _tracks_from_bandcamp_html(page, "track")
+        self.assertEqual([(track.artist, track.title, track.duration_ms) for track in tracks], [("Night Drive", "Coastal", 20000)])
+
+    def test_bandcamp_json_ld_album_is_a_fallback_playlist(self) -> None:
+        page = """
+        <script type="application/ld+json">
+        {"@type":"MusicAlbum","name":"Coastal","datePublished":"2024-03-15",
+         "byArtist":{"@type":"MusicGroup","name":"Night Drive"},
+         "track":{"@type":"ItemList","itemListElement":[
+           {"@type":"ListItem","position":1,"item":{"@type":"MusicRecording","name":"Harbor","duration":"PT3M","byArtist":{"name":"Guest"}}},
+           {"@type":"ListItem","position":2,"item":{"@type":"MusicRecording","name":"Coastal","duration":"PT3M20S"}}
+         ]}}
+        </script>
+        """
+        tracks = _tracks_from_bandcamp_html(page, "album")
+        self.assertEqual(
+            [(track.artist, track.title, track.duration_ms, track.released_at) for track in tracks],
+            [("Guest", "Harbor", 180000, "2024-03-15"), ("Night Drive", "Coastal", 200000, "2024-03-15")],
+        )
+
+    def test_bandcamp_urls_accept_album_and_track_links_only(self) -> None:
+        self.assertEqual(
+            parse_bandcamp_url("https://night.bandcamp.com/album/coastal?from=fan"),
+            ("album", "coastal"),
+        )
+        self.assertEqual(parse_bandcamp_url("https://night.bandcamp.com/track/harbor/"), ("track", "harbor"))
+        with self.assertRaisesRegex(InputError, "album or track"):
+            validate_source_url("bandcamp", "https://night.bandcamp.com/")
+        with self.assertRaisesRegex(InputError, "Bandcamp"):
+            validate_source_url("bandcamp", "https://www.beatport.com/track/song/1")
 
     def test_source_validation_rejects_a_link_from_another_provider(self) -> None:
         with self.assertRaisesRegex(InputError, "valid YouTube"):

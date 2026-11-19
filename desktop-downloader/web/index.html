@@ -66,7 +66,8 @@
       .source-card small { display: block; margin-top: 3px; color: var(--muted); font-size: .78rem; }
       .source-icon { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 6px; border-radius: 8px; font-size: .82rem; vertical-align: middle; }
       .youtube { color: #ce3045; background: #ffebee; } .spotify { color: #168b62; background: #e3f8f1; }
-      .beatport { color: #9b671b; background: #fff0dc; } .text { color: #5263c9; background: #eaf0ff; }
+      .beatport { color: #9b671b; background: #fff0dc; } .bandcamp { color: #1a8fad; background: #e5f6fb; }
+      .text { color: #5263c9; background: #eaf0ff; }
       .search { color: #2f6f9f; background: #e7f3fb; }
       .field { margin-top: 18px; }
       label { display: block; margin-bottom: 7px; font-size: .9rem; font-weight: 750; }
@@ -203,6 +204,9 @@
             <button class="source-card" type="button" data-source="beatport">
               <strong><span class="source-icon beatport">◆</span>Beatport</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
             </button>
+            <button class="source-card" type="button" data-source="bandcamp">
+              <strong><span class="source-icon bandcamp">♫</span>Bandcamp</strong><small data-i18n="metadataHelp">Public track or playlist metadata</small>
+            </button>
             <button class="source-card" type="button" data-source="search">
               <strong><span class="source-icon search">⌕</span><span data-i18n="searchSongs">Search</span></strong><small data-i18n="searchHelp">Type a song and artist, then pick a result</small>
             </button>
@@ -329,7 +333,7 @@
               </div>
               <p class="helper" data-i18n="losslessWarning">FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.</p>
               <label class="check" style="margin-top:12px;"><input id="year-month-folders" type="checkbox" /><span data-i18n="yearMonthFolders">Save in year/month folders (2026/09)</span></label>
-              <p class="helper" data-i18n="yearMonthFoldersHelp">Files go under YYYY/MM from the track’s Spotify, Beatport, or YouTube date. If the provider has no date, today’s date is used. The playlist stays with the tracks when they share a month; otherwise it goes in today’s folder.</p>
+              <p class="helper" data-i18n="yearMonthFoldersHelp">Files go under YYYY/MM from the track’s Spotify, Beatport, Bandcamp, or YouTube date. If the provider has no date, today’s date is used. The playlist stays with the tracks when they share a month; otherwise it goes in today’s folder.</p>
               <label class="check" style="margin-top:12px;"><input id="rekordbox-playlist" type="checkbox" /><span data-i18n="rekordboxPlaylist">Create a Rekordbox-compatible .m3u8 playlist</span></label>
               <label class="check" style="margin-top:12px;"><input id="extract-suggested-stems" type="checkbox" /><span data-i18n="extractSuggestedStems">Extract suggested vocal/drums WAVs for Rekordbox</span></label>
               <p class="helper" data-i18n="extractStemsHelp">Only parts the hint marks useful. Rekordbox imports those WAVs as normal tracks (USB/third deck). Native STEMS still run on the mixed file in Performance mode. Needs the optional Demucs tool.</p>
@@ -348,7 +352,7 @@
             <li data-i18n="simpleTwo">Paste a link, or choose a plain text list.</li>
             <li data-i18n="simpleThree">Watch the progress while files land in your music folder.</li>
           </ol>
-          <div class="notice"><strong data-i18n="aboutSources">About sources</strong><br /><span data-i18n="aboutSourcesHelp">Spotify and Beatport are used for public song metadata; matching audio is searched on YouTube for a consistent local library.</span></div>
+          <div class="notice"><strong data-i18n="aboutSources">About sources</strong><br /><span data-i18n="aboutSourcesHelp">Spotify, Beatport, and Bandcamp are used for public song metadata; matching audio is searched on YouTube for a consistent local library.</span></div>
         </aside>
       </div>
 

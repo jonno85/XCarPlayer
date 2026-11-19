@@ -36,7 +36,7 @@
       playlistName: "Playlist name", losslessWarning: "FLAC/WAV do not restore quality already lost at the source. MP3 is the safest choice for older Pioneer hardware.",
       rekordboxPlaylist: "Create a Rekordbox-compatible .m3u8 playlist",
       yearMonthFolders: "Save in year/month folders (2026/09)",
-      yearMonthFoldersHelp: "Files go under YYYY/MM from the track’s Spotify, Beatport, or YouTube date. If the provider has no date, today’s date is used. The playlist stays with the tracks when they share a month; otherwise it goes in today’s folder.",
+      yearMonthFoldersHelp: "Files go under YYYY/MM from the track’s Spotify, Beatport, Bandcamp, or YouTube date. If the provider has no date, today’s date is used. The playlist stays with the tracks when they share a month; otherwise it goes in today’s folder.",
       extractSuggestedStems: "Extract suggested vocal/drums WAVs for Rekordbox",
       extractStemsHelp: "Only parts the hint marks useful. Rekordbox imports those WAVs as normal tracks (USB/third deck). Native STEMS still run on the mixed file in Performance mode. Needs the optional Demucs tool.",
       rekordboxTagsHelp: "Rekordbox reads Genre, BPM, Key, Year, Grouping, and Comments from the MP3 on import. Key is stored as Am / F# so Rekordbox can display Camelot. Analysis replaces BPM; turn off Key analysis to keep the catalog key. My Tags and colour labels stay inside Rekordbox.",
@@ -53,12 +53,13 @@
       scanResult: "{total} audio files: {tracked} in download history, {untracked} other library files.",
       youtubeLabel: "YouTube link", spotifyLabel: "Spotify track or playlist link",
       beatportLabel: "Beatport track or playlist link",
+      bandcampLabel: "Bandcamp album or track link",
       youtubeHint: "Choose “Playlist” below if the link contains more than one song.",
       metadataHint: "We read the public song names, then search YouTube for matching audio.",
       noFile: "No file chosen", textSearchHelp: "The app searches YouTube for each song and writes it in your selected format.",
       simpleDesign: "Simple by design", simpleOne: "Pick where your song names come from.",
       simpleTwo: "Paste a link, or choose a plain text list.", simpleThree: "Watch the progress while files land in your music folder.",
-      aboutSources: "About sources", aboutSourcesHelp: "Spotify and Beatport provide public song metadata; matching audio is searched on YouTube.",
+      aboutSources: "About sources", aboutSourcesHelp: "Spotify, Beatport, and Bandcamp provide public song metadata; matching audio is searched on YouTube.",
       downloadStatus: "Download status", preparingTitle: "Getting things ready", preparing: "Preparing",
       preparingHelp: "Your download is being prepared.", showDetails: "Show download details",
       pause: "Pause", resume: "Resume", stop: "Stop", paused: "Paused", stopped: "Stopped",
@@ -100,7 +101,7 @@
       playlistName: "Nome playlist", losslessWarning: "FLAC/WAV non recuperano qualità già persa alla sorgente. MP3 è la scelta più compatibile con hardware Pioneer meno recente.",
       rekordboxPlaylist: "Crea una playlist .m3u8 compatibile con Rekordbox",
       yearMonthFolders: "Salva in cartelle anno/mese (2026/09)",
-      yearMonthFoldersHelp: "I file vanno in AAAA/MM dalla data Spotify, Beatport o YouTube del brano. Se la sorgente non ha una data, si usa quella di oggi. La playlist resta con i brani se condividono lo stesso mese; altrimenti va nella cartella di oggi.",
+      yearMonthFoldersHelp: "I file vanno in AAAA/MM dalla data Spotify, Beatport, Bandcamp o YouTube del brano. Se la sorgente non ha una data, si usa quella di oggi. La playlist resta con i brani se condividono lo stesso mese; altrimenti va nella cartella di oggi.",
       extractSuggestedStems: "Estrai WAV vocal/drums suggeriti per Rekordbox",
       extractStemsHelp: "Solo le parti che il suggerimento indica come utili. Rekordbox importa quei WAV come brani normali (USB o terzo deck). Gli STEMS nativi restano sul file misto in Performance. Serve lo strumento opzionale Demucs.",
       rekordboxTagsHelp: "Rekordbox legge Genere, BPM, Tonalità, Anno, Raggruppamento e Commenti dall’MP3 all’importazione. La tonalità è salvata come Am / F# così Rekordbox può mostrarla in Camelot. L’analisi sostituisce il BPM; disattiva l’analisi della tonalità per tenere quella del catalogo. I My Tag e i colori restano dentro Rekordbox.",
@@ -117,12 +118,13 @@
       scanResult: "{total} file audio: {tracked} nella cronologia, {untracked} altri file della libreria.",
       youtubeLabel: "Link YouTube", spotifyLabel: "Link a brano o playlist Spotify",
       beatportLabel: "Link a brano o playlist Beatport",
+      bandcampLabel: "Link a album o brano Bandcamp",
       youtubeHint: "Scegli “Playlist” qui sotto se il link contiene più brani.",
       metadataHint: "Leggiamo i nomi pubblici dei brani e cerchiamo l’audio corrispondente su YouTube.",
       noFile: "Nessun file scelto", textSearchHelp: "L’app cerca ogni brano su YouTube e lo salva nel formato selezionato.",
       simpleDesign: "Semplice per scelta", simpleOne: "Scegli da dove provengono i nomi dei brani.",
       simpleTwo: "Incolla un link o scegli una lista di testo.", simpleThree: "Segui l’avanzamento mentre i file arrivano nella cartella musicale.",
-      aboutSources: "Informazioni sulle sorgenti", aboutSourcesHelp: "Spotify e Beatport forniscono metadati pubblici; l’audio corrispondente viene cercato su YouTube.",
+      aboutSources: "Informazioni sulle sorgenti", aboutSourcesHelp: "Spotify, Beatport e Bandcamp forniscono metadati pubblici; l’audio corrispondente viene cercato su YouTube.",
       downloadStatus: "Stato download", preparingTitle: "Preparazione in corso", preparing: "Preparazione",
       preparingHelp: "Il download è in preparazione.", showDetails: "Mostra dettagli download",
       pause: "Pausa", resume: "Riprendi", stop: "Interrompi", paused: "In pausa", stopped: "Interrotto",
@@ -187,7 +189,13 @@
     $("#search-section").classList.toggle("hidden", !isSearch);
     if (!isText && !isSearch) {
       $("#url-label").textContent = t(`${source}Label`);
-      $("#source-url").placeholder = source === "youtube" ? "https://www.youtube.com/watch?v=…" : `https://${source === "spotify" ? "open.spotify.com" : "www.beatport.com"}/…`;
+      const placeholders = {
+        youtube: "https://www.youtube.com/watch?v=…",
+        spotify: "https://open.spotify.com/…",
+        beatport: "https://www.beatport.com/…",
+        bandcamp: "https://artist.bandcamp.com/album/…",
+      };
+      $("#source-url").placeholder = placeholders[source] || placeholders.youtube;
       $("#url-helper").textContent = t(source === "youtube" ? "youtubeHint" : "metadataHint");
     }
     $("#search-artist").placeholder = t("artist");
@@ -195,7 +203,9 @@
     $("#download-type-section").classList.toggle("hidden", source !== "youtube");
     $("#youtube-sign-in").classList.toggle("hidden", source !== "youtube" && source !== "search");
     $("#spotify-public-import").classList.toggle("hidden", source !== "spotify");
-    $("#preview-url-button").classList.toggle("hidden", source !== "spotify" && source !== "beatport");
+    $("#preview-url-button").classList.toggle(
+      "hidden", source !== "spotify" && source !== "beatport" && source !== "bandcamp"
+    );
     $("#track-preview").classList.toggle(
       "hidden", !state.previewTracks.length || state.previewSource !== source
     );
